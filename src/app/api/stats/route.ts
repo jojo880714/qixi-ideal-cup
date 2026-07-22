@@ -32,6 +32,9 @@ export async function GET() {
         title: resolveTraitTitle(row.trait_id),
       })),
     },
-    { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+    // Aggregate stats drift slowly (used for "全站最多人選的條件" content,
+    // not a live counter) — a 5-minute edge cache cuts function invocations
+    // for this route to near zero without the numbers ever looking stale.
+    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" } },
   );
 }

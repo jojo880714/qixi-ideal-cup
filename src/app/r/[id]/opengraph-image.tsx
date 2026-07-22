@@ -10,6 +10,19 @@ export const contentType = "image/png";
 
 const FONT_FAMILY = "Noto+Sans+TC";
 
+// `results` rows are insert-only and never updated, so a found result's
+// image never changes — cache it on Vercel's Edge Network (and any
+// crawler/CDN that respects Cache-Control) for a year and skip
+// re-fetching Supabase + Google Fonts on every share-preview hit. This is
+// the single biggest usage-saving lever on this route: without it, every
+// LINE/Facebook/Twitter link-preview crawler hit would re-run the edge
+// function and re-fetch fonts.
+const FOUND_CACHE_CONTROL = "public, immutable, max-age=31536000";
+// An unknown/mistyped id gets a short cache instead of a permanent one, in
+// case it's a very-recently-created id and this request raced ahead of it
+// (belt-and-braces — Supabase reads are consistent, this is just a hedge).
+const NOT_FOUND_CACHE_CONTROL = "public, max-age=60";
+
 /**
  * Loads a Chinese-glyph subset of Noto Sans TC from Google Fonts, scoped to
  * only the characters this specific image needs (`text=`) so the payload
@@ -46,6 +59,10 @@ export default async function OgImage({ params }: { params: { id: string } }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            // Mirrors --night / --milk in globals.css — satori can't read
+            // CSS custom properties, so these are duplicated literals.
+            // Update alongside globals.css until the design spec replaces
+            // both.
             background: "#170D2E",
             color: "#FFF6EC",
             fontSize: 48,
@@ -54,7 +71,7 @@ export default async function OgImage({ params }: { params: { id: string } }) {
           七夕理想型世界盃
         </div>
       ),
-      { ...size },
+      { ...size, headers: { "Cache-Control": NOT_FOUND_CACHE_CONTROL } },
     );
   }
 
@@ -107,6 +124,7 @@ export default async function OgImage({ params }: { params: { id: string } }) {
     {
       ...size,
       fonts: fonts.length > 0 ? fonts : undefined,
+      headers: { "Cache-Control": FOUND_CACHE_CONTROL },
     },
   );
 }

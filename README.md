@@ -48,6 +48,33 @@ npm run dev
 
 用 `@vercel/analytics`（`src/lib/analytics.ts`），五個必要事件：`quiz_started`、`quiz_completed`、`poster_downloaded`、`share_text_copied`、`result_revisited`。開發模式下事件只會印在 console（不會真的送出），正式站上到 Vercel Dashboard → Analytics 才看得到。
 
+## Vercel Hobby（免費方案）用量策略
+
+這個專案設計成優先讓 Vercel 的 Edge Network 直接擋掉重複請求，而不是每次都真的跑一次 function／查一次 Supabase：
+
+- `/`（首頁）在 build 時就是純靜態頁（`next build` 輸出會標示 `○ /`），造訪完全不消耗 function 用量。
+- `/r/[id]`：內容一旦寫入就不會再變，所以設定 `revalidate = 2592000`（30 天），同一個結果頁在快取期間重複被打開（分享出去被很多人點）不會重複打 function／Supabase。
+- `/r/[id]/opengraph-image`：同一個 `id` 的圖片內容也是不變的，回應帶 `Cache-Control: public, immutable, max-age=31536000`（1 年）。這是流量重點——每個分享連結被 LINE / FB / Threads 等平台的預覽爬蟲讀取時，多半都會命中這個快取而不會重新產生圖片。
+- `/api/stats`：`Cache-Control: public, s-maxage=300`（5 分鐘），這支只是給之後做內容用的統計 API，不需要即時。
+- `/api/results`（寫入用）本來就只有真的完賽才會呼叫一次，沒有多餘的呼叫可以省。
+- 字型走 Google Fonts 自己的 CDN（`fonts.googleapis.com`／`fonts.gstatic.com`），不算進 Vercel 的頻寬或 function 用量。
+
+### Hobby 方案大概對應多少流量（2026 年中的公開數字，Vercel 可能會調整，實際以帳號後台為準）
+
+| 項目 | 額度 |
+|---|---|
+| Fast Data Transfer（頻寬） | 100 GB / 月 |
+| Edge Requests | 1,000,000 / 月 |
+| Function Invocations | 1,000,000 / 月 |
+| Vercel Functions Active CPU | 4 小時 / 月 |
+| ISR Reads / Writes | 1,000,000 / 200,000 / 月 |
+
+有了上面的快取策略，實際會「真的」呼叫到 function／Supabase 的，主要只剩：每個「新結果」第一次被看到時（含 OG 圖）、以及每次完賽寫入。以一個病毒式檔期活動來說，這個額度粗估足以撐到**數萬到十幾萬次不重複訪問／分享**（實際會依平均每人開幾次分享連結、圖片被爬蟲重複打幾次而變動，無法給精確數字）。如果社群反應非常好造成短時間暴衝，最先被打滿的通常是 Function Invocations 或 Active CPU，屆時 Vercel 會通知並詢問是否升級 Pro，Hobby 額度用完不會直接噴表機費用（Hobby 沒有 pay-as-you-go）。
+
+### 在哪裡看用量
+
+Vercel 後台左側選單 **Usage**（先用畫面左上角的 team 切換器選到你的帳號／team）。可以切換「最近 30 天」，並依 metric／專案／地區分別查看，超過額度前 Vercel 也會主動發通知。
+
 ## 已知取捨（下一步可能要做的事）
 
 - `trait_stats` view 目前只能算出「奪冠率」與「晉級四強率」，因為 `results` 只存最終結果（冠軍＋四強），沒有記錄每一輪分組/1v1 的選擇。若之後要做逐輪晉級率，需要另外設計 `game_events` 表。

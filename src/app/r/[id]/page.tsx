@@ -11,6 +11,16 @@ interface Props {
   params: { id: string };
 }
 
+// `results` rows are insert-only and never updated, so a given id's page
+// never changes once created. Cache it (Vercel's ISR/Data Cache) for 30
+// days instead of re-invoking this function and re-querying Supabase on
+// every visit — this is the highest-traffic page after "/", since it's
+// exactly what gets opened from shared links. Kept finite (not `false`)
+// rather than a full year, as a smaller blast radius in case a result is
+// ever fetched before its write is visible.
+export const revalidate = 2592000; // 30 days
+export const dynamicParams = true;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const row = await fetchResultById(params.id);
   if (!row) return { title: "找不到這個結果｜七夕理想型世界盃" };
