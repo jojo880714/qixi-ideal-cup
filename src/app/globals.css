@@ -1,0 +1,483 @@
+/*
+ * Placeholder visual layer — ported near-verbatim from the prototype
+ * (qixi-ideal-cup-v2.html) so the app is usable end-to-end before the
+ * design spec lands. Colors/spacing here are NOT final: swap the
+ * `--night/--peach/--gold/...` variables (and persona bg/ink in
+ * src/data/personas.ts) once the design spec arrives — the structural
+ * classNames below are stable and the design pass shouldn't need to touch
+ * component markup.
+ */
+
+:root {
+  --night: #170d2e;
+  --night2: #2a1650;
+  --peach: #ff8fab;
+  --gold: #e8c468;
+  --milk: #fff6ec;
+  --card: #241447;
+  --mint: #7fe3c4;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "Noto Sans TC", system-ui, sans-serif;
+  background: radial-gradient(1200px 800px at 50% -10%, var(--night2), var(--night) 60%);
+  color: var(--milk);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#starfield {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 26px 20px 50px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- home ---------- */
+.eyebrow {
+  letter-spacing: 0.35em;
+  font-size: 12px;
+  color: var(--mint);
+  text-align: center;
+  margin-bottom: 14px;
+}
+h1 {
+  font-family: "Noto Serif TC", serif;
+  font-weight: 900;
+  font-size: clamp(32px, 8.5vw, 44px);
+  line-height: 1.3;
+  text-align: center;
+  background: linear-gradient(120deg, var(--milk) 30%, var(--peach) 70%, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.sub {
+  text-align: center;
+  color: #cdbbe8;
+  font-size: 15px;
+  line-height: 1.9;
+  margin: 16px 0 26px;
+}
+label.fieldlabel {
+  display: block;
+  font-size: 13px;
+  color: #b9a6dc;
+  margin-bottom: 8px;
+  letter-spacing: 0.1em;
+}
+input#nickname {
+  width: 100%;
+  background: #1d1040;
+  border: 1px solid #3b2570;
+  border-radius: 14px;
+  color: var(--milk);
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  text-align: center;
+}
+input#nickname:focus-visible {
+  outline: 2px solid var(--gold);
+}
+.modes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+.mode-btn {
+  background: var(--card);
+  border: 1px solid #3b2570;
+  border-radius: 16px;
+  padding: 16px 18px;
+  color: var(--milk);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  transition:
+    transform 0.15s,
+    border-color 0.15s;
+}
+.mode-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--peach);
+}
+.mode-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.mode-btn b {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+.mode-btn span {
+  color: #b9a6dc;
+  font-size: 13px;
+}
+
+/* ---------- stage header ---------- */
+.stage-tag {
+  display: block;
+  width: fit-content;
+  margin: 0 auto 10px;
+  background: rgba(232, 196, 104, 0.12);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  border-radius: 99px;
+  padding: 5px 18px;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+}
+.group-title {
+  font-family: "Noto Serif TC", serif;
+  font-weight: 800;
+  font-size: 24px;
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+.group-sub {
+  text-align: center;
+  font-size: 13px;
+  color: #b9a6dc;
+  margin: 6px 0 12px;
+}
+.progress {
+  height: 6px;
+  background: #2a1a52;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--peach), var(--gold));
+  border-radius: 99px;
+  transition: width 0.3s;
+}
+
+/* ---------- group pick ---------- */
+.pick-hint {
+  text-align: center;
+  color: #9f8cc7;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex: 1;
+  align-content: center;
+}
+.trait-card {
+  background: var(--card);
+  border: 1px solid #3b2570;
+  border-radius: 16px;
+  min-height: 86px;
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--milk);
+  font-size: 15px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.12s,
+    border-color 0.12s,
+    background 0.12s;
+}
+.trait-card:hover {
+  transform: scale(1.02);
+  border-color: #6c4ab6;
+}
+.trait-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.trait-card.sel {
+  background: #3a2070;
+  border-color: var(--peach);
+  box-shadow:
+    0 0 0 1px var(--peach),
+    0 6px 24px rgba(255, 143, 171, 0.18);
+}
+.confirm {
+  margin-top: 16px;
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: "Noto Serif TC", serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  background: linear-gradient(120deg, var(--peach), var(--gold));
+  color: #2a1030;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
+}
+.confirm:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.confirm:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+.confirm:focus-visible {
+  outline: 2px solid var(--milk);
+  outline-offset: 2px;
+}
+
+/* ---------- 1v1 ---------- */
+.battle {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  justify-content: center;
+}
+.duel-card {
+  background: var(--card);
+  border: 1px solid #3b2570;
+  border-radius: 20px;
+  padding: 30px 20px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--milk);
+  transition:
+    transform 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+  width: 100%;
+}
+.duel-card:hover {
+  transform: scale(1.02);
+  border-color: var(--peach);
+  box-shadow: 0 6px 30px rgba(255, 143, 171, 0.15);
+}
+.duel-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.duel-card .t {
+  font-family: "Noto Serif TC", serif;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.5;
+}
+.vs {
+  text-align: center;
+  font-family: "Noto Serif TC", serif;
+  font-weight: 800;
+  color: var(--peach);
+  font-size: 18px;
+  letter-spacing: 0.3em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---------- result card ---------- */
+.result-card {
+  border-radius: 24px;
+  padding: 30px 24px 26px;
+  margin: 6px 0 16px;
+}
+.result-card .rc-eyebrow {
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+.result-card .rc-title {
+  font-family: "Noto Serif TC", serif;
+  font-weight: 900;
+  font-size: 34px;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+.result-card .rc-nick {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-bottom: 18px;
+}
+.result-card .rc-box {
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.result-card .rc-box h4 {
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+.result-card .rc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.result-card .rc-tags span {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 99px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.result-card .rc-desc {
+  font-size: 14.5px;
+  line-height: 1.95;
+  text-align: justify;
+}
+.result-card .rc-champ {
+  font-family: "Noto Serif TC", serif;
+  font-weight: 800;
+  font-size: 21px;
+  line-height: 1.5;
+}
+.result-card .rc-four {
+  font-size: 13px;
+  line-height: 1.9;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+.result-card .rc-match {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.result-card .rc-match .rc-box {
+  margin-bottom: 0;
+  text-align: center;
+}
+.result-card .rc-match b {
+  display: block;
+  font-family: "Noto Serif TC", serif;
+  font-size: 16px;
+  margin-top: 2px;
+}
+.result-card .rc-footer {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.primary {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: "Noto Serif TC", serif;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  background: linear-gradient(120deg, var(--peach), var(--gold));
+  color: #2a1030;
+  transition: transform 0.15s;
+}
+.primary:hover {
+  transform: translateY(-2px);
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.primary:focus-visible {
+  outline: 2px solid var(--milk);
+  outline-offset: 2px;
+}
+.ghost {
+  width: 100%;
+  padding: 13px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  background: transparent;
+  border: 1px solid #4a2f87;
+  color: #cdbbe8;
+  transition: border-color 0.15s;
+}
+.ghost:hover {
+  border-color: var(--peach);
+}
+.ghost:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  background: var(--gold);
+  color: #2a1030;
+  padding: 10px 20px;
+  border-radius: 99px;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 9;
+}
+.toast.show {
+  opacity: 1;
+}
+
+canvas#poster {
+  display: none;
+}

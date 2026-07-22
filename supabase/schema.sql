@@ -1,0 +1,135 @@
+-- 七夕理想型世界盃 — Supabase schema
+--
+-- Design notes (read before modifying):
+--
+-- 1. We store IDs, not display text. `champion_id` / `final_four_ids` are
+--    Trait.id values from src/data/traits.ts (e.g. "care-03"), and
+--    `persona_key` is a FactionKey from src/data/personas.ts. The actual
+--    Chinese wording is resolved app-side at render time. This means a
+--    future copy-finalization pass can replace src/data/traits.ts and
+--    src/data/personas.ts wholesale without any migration — old rows keep
+--    resolving to whatever text currently lives at that id.
+--
+-- 2. No PII is collected. `nickname` is free text the user typed and is
+--    treated as public content (it's displayed on the shareable result
+--    card), same as the prototype's poster feature.
+--
+-- 3. "Anonymous can insert and read a single result, but not list, update,
+--    or delete" is enforced by *not* granting SELECT on the table at all —
+--    RLS policies apply per-row, so a `using (true)` SELECT policy would
+--    still let a client query `?select=*&limit=1000` and enumerate every
+--    row. Instead, reads only go through `get_result_by_id(uuid)`, a
+--    SECURITY DEFINER function that takes a single id and returns at most
+--    one row. There is no way to call it without already knowing the id.
+--
+-- 4. Aggregate stats (/stats API) are read with the Supabase *service role*
+--    key, server-side only (see src/lib/supabase/server.ts + app/api/stats).
+--    Service role bypasses RLS, so the stats views below are never granted
+--    to `anon` — there is no anonymous read path to them at all.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.results (
+  id uuid primary key,
+  mode smallint not null check (mode in (64, 128)),
+  persona_key text not null check (
+    persona_key in ('soul', 'safe', 'life', 'spark', 'grow', 'care', 'free', 'fun')
+  ),
+  champion_id text not null,
+  final_four_ids text[] not null check (array_length(final_four_ids, 1) = 4),
+  nickname text not null check (char_length(nickname) between 1 and 12),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists results_champion_id_idx on public.results (champion_id);
+create index if not exists results_persona_key_idx on public.results (persona_key);
+create index if not exists results_created_at_idx on public.results (created_at);
+
+alter table public.results enable row level security;
+
+-- Belt-and-braces: revoke whatever default privileges PostgREST roles may
+-- have, then grant back only what's intended.
+revoke all on public.results from anon, authenticated;
+
+-- Anonymous clients may insert new results. The app generates the row's
+-- `id` client-side (crypto.randomUUID()) so no SELECT is ever needed to
+-- learn the id back — see src/lib/supabase/client.ts.
+grant insert on public.results to anon;
+
+create policy "anon can insert results"
+  on public.results
+  for insert
+  to anon
+  with check (true);
+
+-- Deliberately no SELECT/UPDATE/DELETE policy for anon or authenticated.
+-- Reads happen only through the function below.
+
+create or replace function public.get_result_by_id(p_id uuid)
+returns table (
+  id uuid,
+  mode smallint,
+  persona_key text,
+  champion_id text,
+  final_four_ids text[],
+  nickname text,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select r.id, r.mode, r.persona_key, r.champion_id, r.final_four_ids, r.nickname, r.created_at
+  from public.results r
+  where r.id = p_id
+  limit 1;
+$$;
+
+revoke all on function public.get_result_by_id(uuid) from public;
+grant execute on function public.get_result_by_id(uuid) to anon;
+
+-- ---------------------------------------------------------------------
+-- Stats views. Only reachable via the service-role key from server-side
+-- API routes (see app/api/stats/route.ts) — never granted to anon.
+-- ---------------------------------------------------------------------
+
+-- 8 型人格分布：完賽總數、各人格佔比
+create or replace view public.persona_distribution as
+select
+  persona_key,
+  count(*) as total,
+  round(100.0 * count(*) / nullif(sum(count(*)) over (), 0), 2) as pct
+from public.results
+group by persona_key
+order by total desc;
+
+-- 各條件的奪冠率／晉級四強率。
+-- 目前只儲存完賽結果（冠軍 + 四強），並未記錄每一輪的分組/1v1 選擇，
+-- 所以「淘汰率」是以「未能晉級四強」反推的近似值，而非逐輪精確追蹤。
+-- 若之後需要逐輪晉級率，需另建 game_events 表記錄每次分組/1v1 選擇。
+create or replace view public.trait_stats as
+with games as (
+  select id, champion_id, unnest(final_four_ids) as final_four_id
+  from public.results
+),
+total_games as (
+  select count(*) as n from public.results
+)
+select
+  ff.final_four_id as trait_id,
+  count(*) filter (where ff.champion_id = ff.final_four_id) as champion_count,
+  count(distinct ff.id) as final_four_count,
+  (select n from total_games) as total_games,
+  round(
+    100.0 * count(*) filter (where ff.champion_id = ff.final_four_id)
+      / nullif((select n from total_games), 0),
+    2
+  ) as champion_rate_pct,
+  round(
+    100.0 * count(distinct ff.id) / nullif((select n from total_games), 0),
+    2
+  ) as final_four_rate_pct
+from games ff
+group by ff.final_four_id
+order by champion_count desc, final_four_count desc;
