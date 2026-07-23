@@ -13,13 +13,14 @@ import {
 } from "@/lib/engine";
 import { trackPosterDownloaded, trackQuizCompleted, trackQuizStarted } from "@/lib/analytics";
 import { track } from "@/lib/track";
-import { downloadCanvasAsPng, drawPosterToCanvas, POSTER_HEIGHT, POSTER_WIDTH } from "@/lib/poster";
+import { sharePosterFromNode } from "@/lib/sharePoster";
 import { getSignupUrl } from "@/lib/siteUrl";
 import { HomeScreen } from "./HomeScreen";
 import { GroupScreen } from "./GroupScreen";
 import { DuelScreen } from "./DuelScreen";
 import { ChampionReveal } from "./ChampionReveal";
 import { ResultCard } from "./ResultCard";
+import { PosterCard } from "./PosterCard";
 import { SignupCta } from "./SignupCta";
 import { BrandFooter } from "./BrandFooter";
 import { StarField } from "./StarField";
@@ -32,28 +33,23 @@ export function GameApp() {
   const [toast, setToast] = useState<string | null>(null);
   // 冠軍戰結束後先播「星等爆發」揭曉，再顯示結果卡。
   const [revealing, setRevealing] = useState(false);
-  const posterCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [sharing, setSharing] = useState(false);
+  // Off-screen PosterCard node captured by html-to-image on download.
+  const posterNodeRef = useRef<HTMLDivElement>(null);
   const submittedRef = useRef(false);
   // Full pick snapshot (每組看到哪些條件、留下哪些；每場 1v1 誰勝) for
   // post-hoc per-round content. Stored with the completion, analytics-only.
   const picksRef = useRef<unknown[]>([]);
-  const logoRef = useRef<HTMLImageElement | null>(null);
 
   // First-party "visit" event, once per browser session (bots that don't run
-  // JS never fire this, keeping visitor counts honest). Also preload the
-  // Joysee logo so the poster footer can draw it.
+  // JS never fire this, keeping visitor counts honest).
   useEffect(() => {
     track("visit", { oncePerSession: true });
-    // Load the logo from the public file (kept out of the JS bundle so it
-    // doesn't bloat First Load JS) — used to draw the poster footer.
-    const img = new Image();
-    img.src = "/joysee-logo.png";
-    logoRef.current = img;
   }, []);
 
   function showToast(message: string) {
     setToast(message);
-    window.setTimeout(() => setToast((current) => (current === message ? null : current)), 2200);
+    window.setTimeout(() => setToast((current) => (current === message ? null : current)), 2600);
   }
 
   function handleStart(mode: Mode, sanitizedNickname: string) {
@@ -102,26 +98,13 @@ export function GameApp() {
   const result = state?.phase === "result" ? getGameResult(state) : null;
   const persona = result ? PERSONAS[result.championKey] : null;
 
-  // Submit the finished result once, draw the poster, and fire the completion event.
+  // Submit the finished result once and fire the completion event.
   useEffect(() => {
     if (!result || !persona || !state || submittedRef.current) return;
     submittedRef.current = true;
 
     trackQuizCompleted(state.mode, persona.key);
     track("quiz_complete", { mode: state.mode, personaKey: persona.key });
-
-    if (posterCanvasRef.current) {
-      drawPosterToCanvas(posterCanvasRef.current, {
-        persona,
-        nickname,
-        mode: state.mode,
-        championTitle: result.champion.title,
-        finalFourTitles: result.finalFour.map((t) => t.title),
-        dateFaction: PERSONAS[persona.date].faction,
-        friendFaction: PERSONAS[persona.friend].faction,
-        logo: logoRef.current,
-      });
-    }
 
     // Persist the result for stats / 全站戰況 (fire-and-forget — the user has
     // no link UI, this powers /wall + /admin aggregates + the per-result page).
@@ -139,12 +122,21 @@ export function GameApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, persona, state, nickname]);
 
-  function handleDownloadPoster() {
-    if (!posterCanvasRef.current || !state || !persona) return;
+  async function handleDownloadPoster() {
+    if (!posterNodeRef.current || !state || !persona || sharing) return;
     trackPosterDownloaded(state.mode, persona.key);
     track("poster_download", { mode: state.mode, personaKey: persona.key });
-    downloadCanvasAsPng(posterCanvasRef.current, `七夕理想型世界盃_${nickname}.png`);
-    showToast("人格卡已下載，貼出去等人報到 🙋");
+    setSharing(true);
+    showToast("圖片產生中…");
+    const outcome = await sharePosterFromNode(
+      posterNodeRef.current,
+      `七夕理想型世界盃_${nickname}.png`,
+      `這個七夕我是「${persona.name}」，符合的請在留言區報到 🙋`,
+    );
+    setSharing(false);
+    if (outcome === "shared") showToast("選「儲存影像」存到相簿，或直接發限動 🙋");
+    else if (outcome === "downloaded") showToast("人格卡已存到下載，貼出去等人報到 🙋");
+    else showToast("產生失敗，請再試一次");
   }
 
   function handleRestart() {
@@ -202,8 +194,8 @@ export function GameApp() {
             friendFaction={PERSONAS[persona.friend].faction}
           />
           <div className="actions">
-            <button className="primary" onClick={handleDownloadPoster}>
-              🖼 下載我的單身人格卡
+            <button className="primary" onClick={handleDownloadPoster} disabled={sharing}>
+              {sharing ? "圖片產生中…" : "🖼 儲存 / 分享我的人格卡"}
             </button>
             {SIGNUP_URL && <SignupCta url={SIGNUP_URL} personaKey={persona.key} />}
             <button className="ghost" onClick={handleRestart}>
@@ -214,7 +206,26 @@ export function GameApp() {
         </section>
       )}
 
-      <canvas ref={posterCanvasRef} id="poster" width={POSTER_WIDTH} height={POSTER_HEIGHT} />
+      {/* Off-screen poster DOM captured by html-to-image on download. */}
+      {state && result && persona && (
+        <div
+          aria-hidden="true"
+          style={{ position: "fixed", left: -20000, top: 0, pointerEvents: "none", opacity: 0 }}
+        >
+          <div ref={posterNodeRef}>
+            <PosterCard
+              persona={persona}
+              nickname={nickname}
+              mode={state.mode}
+              championTitle={result.champion.title}
+              finalFourTitles={result.finalFour.map((t) => t.title)}
+              dateFaction={PERSONAS[persona.date].faction}
+              friendFaction={PERSONAS[persona.friend].faction}
+            />
+          </div>
+        </div>
+      )}
+
       <div className={`toast${toast ? " show" : ""}`}>{toast}</div>
     </div>
   );
