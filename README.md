@@ -40,7 +40,8 @@ npm run dev
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
-   - `NEXT_PUBLIC_SITE_URL`（Production 填正式網域；Preview 可留預設，Vercel 會用該次部署的網址）
+   - `NEXT_PUBLIC_SITE_URL`（Production 填正式網域，先用 Vercel 給的 `*.vercel.app`；之後換自訂網域只改這一個值。分享短網址、OG canonical、metadataBase 都靠它）
+   - `NEXT_PUBLIC_SIGNUP_URL`（結果頁「報名實體聯誼活動」CTA 連結，合作方提供；**留空則 CTA 自動隱藏**，不會連到死連結）
 3. Push 到預設分支即觸發 Production 部署；PR 會自動出 Preview 部署，兩者互相隔離。
 4. 預設先用 Vercel 提供的網域（`*.vercel.app`）上線。之後要換自訂網域：Project Settings → Domains 加入網域並依指示改 DNS，不需要改任何程式碼。
 
@@ -75,8 +76,27 @@ npm run dev
 
 Vercel 後台左側選單 **Usage**（先用畫面左上角的 team 切換器選到你的帳號／team）。可以切換「最近 30 天」，並依 metric／專案／地區分別查看，超過額度前 Vercel 也會主動發通知。
 
+## 端到端驗證計畫（環境接好後執行）
+
+金鑰／Supabase／Upstash 都設定完、部署到 Preview 後，會逐項驗證：
+
+1. **寫入**：跑一次 64 強與 128 強測驗，確認結果真的寫進 Supabase `results` 表（欄位、`persona_key` 由 `champion_id` 反推正確）。
+2. **RLS**：用 anon key 直接呼叫 REST API 嘗試「列出所有結果」與 update/delete，確認全被拒絕；只有 `get_result_by_id` RPC 能讀單筆。
+3. **分享頁 + OG 圖**：打開真實 `/r/[id]`，確認結果卡、動態 OG 人格卡圖正確顯示，OG 圖回傳 `Cache-Control: immutable`，分享文案帶絕對短網址。
+4. **/stats**：呼叫 `/api/stats`，確認人格分布與條件統計數字合理、且帶 5 分鐘快取標頭。
+5. **Rate limit**：短時間連打 `/api/results`，確認超過門檻回 429。
+6. **效能**：正式網域跑 Lighthouse mobile，確認首屏 < 2 秒、分數 ≥ 90。
+
+## 目前卡在「等金鑰／repo」的項目（今晚無法做，明天補齊即可）
+
+- **GitHub push**：repo 建好（`jojo880714/qixi-ideal-cup`）給網址後即可 push（我這端已有 gh 權限）。
+- **上述端到端驗證 1–5**：需要真實 Supabase／Upstash 金鑰，無法用假資料硬測。程式本身已在本機驗證「無金鑰時優雅降級」（測驗全程可玩、只有寫分享頁那步顯示提示）。
+- **報名 CTA 連結**：`NEXT_PUBLIC_SIGNUP_URL` 待合作方提供；未設定時 CTA 自動隱藏。
+- **Joysee logo 圖檔**：目前用文字佔位（`BrandFooter.tsx` 有註記），拿到 `joysee-logo.png` 後替換一處即可。
+- **海報 QR 圖**：報名連結確認後再生成，目前是佔位方塊。
+
 ## 已知取捨（下一步可能要做的事）
 
 - `trait_stats` view 目前只能算出「奪冠率」與「晉級四強率」，因為 `results` 只存最終結果（冠軍＋四強），沒有記錄每一輪分組/1v1 的選擇。若之後要做逐輪晉級率，需要另外設計 `game_events` 表。
 - OG image（`app/r/[id]/opengraph-image.tsx`）在請求當下向 Google Fonts 抓取中文字型子集，需要外部網路存取；Vercel 正常可行，但若之後要離線/自架，需改成自行內嵌字型檔。
-- Lighthouse mobile ≥ 90 尚未在正式部署環境實測（本機 build 的 First Load JS ≈ 98KB，結構上具備達標的條件），建議部署到 Preview 後用真實網域跑一次 Lighthouse 驗證。
+- Lighthouse mobile ≥ 90 尚未在正式部署環境實測（本機 build 的首頁 First Load JS ≈ 102KB，結構上具備達標的條件），建議部署到 Preview 後用真實網域跑一次 Lighthouse 驗證。
