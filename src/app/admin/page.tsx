@@ -140,7 +140,6 @@ function Dashboard({ m }: { m: AdminMetrics }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginTop: 18 }}>
         <Kpi label="下載海報" value={fmt(m.poster_downloads)} />
-        <Kpi label="複製分享文案" value={fmt(m.share_copies)} />
         <Kpi label="分享頁被回訪" value={fmt(m.revisits)} sub="別人點開分享連結的次數" />
         <Kpi label="64 強 / 128 強" value={`${fmt(m.mode_split["64"] ?? 0)} / ${fmt(m.mode_split["128"] ?? 0)}`} />
       </div>
