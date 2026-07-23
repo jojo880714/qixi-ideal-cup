@@ -1,7 +1,8 @@
 import type { Persona, PersonaSeal } from "@/data/personas";
 
+// IG Story ratio (9:16) so the download drops straight into 限時動態.
 export const POSTER_WIDTH = 1080;
-export const POSTER_HEIGHT = 1440;
+export const POSTER_HEIGHT = 1920;
 
 export interface PosterData {
   persona: Persona;
@@ -11,7 +12,7 @@ export interface PosterData {
   finalFourTitles: string[];
   dateFaction: string;
   friendFaction: string;
-  /** Preloaded Joysee logo for the footer band; falls back to text if absent/unloaded. */
+  /** Preloaded Joysee logo, drawn (yellow) on the night background below the card. */
   logo?: HTMLImageElement | null;
 }
 
@@ -91,190 +92,234 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
 const WHITE_BOX = "rgba(255,255,255,0.55)";
 const WHITE_PILL = "rgba(255,255,255,0.7)";
 
+interface PillRow {
+  pills: { text: string; w: number }[];
+}
+
+function layoutPills(ctx: CanvasRenderingContext2D, tags: string[], maxRowW: number, pillGap: number): PillRow[] {
+  const rows: PillRow[] = [{ pills: [] }];
+  let rowW = 0;
+  for (const tag of tags) {
+    const w = ctx.measureText(tag).width + 48;
+    const row = rows[rows.length - 1]!;
+    if (row.pills.length > 0 && rowW + pillGap + w > maxRowW) {
+      rows.push({ pills: [] });
+      rowW = 0;
+    }
+    const cur = rows[rows.length - 1]!;
+    rowW += (cur.pills.length > 0 ? pillGap : 0) + w;
+    cur.pills.push({ text: tag, w });
+  }
+  return rows;
+}
+
 /**
- * Draws the shareable poster (1080×1440) per Design Spec §04:
- *  giant seal watermark · stamp · white info boxes · framed champion box ·
- *  ink-coloured Joysee brand footer band. One master, recoloured per persona.
+ * Draws the shareable poster at IG-Story size (1080×1920): a faithful render
+ * of the on-screen result card (persona-tinted card with corner seal, tag
+ * pills, description, framed 天字第一號 box, 適合交往／交友, and the 留言區報到
+ * line) floating on the app's night background, with the Joysee logo centred
+ * below it. Recoloured per persona. No QR / brand band.
  */
 export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const { persona, nickname, mode, championTitle, finalFourTitles, logo } = data;
+  const { persona, nickname, mode, championTitle, finalFourTitles, dateFaction, friendFaction, logo } = data;
   const { bg, ink, frame, seal } = persona;
   const W = POSTER_WIDTH;
   const H = POSTER_HEIGHT;
-  const M = 72;
-  const contentW = W - 2 * M;
 
-  // base
+  // ---- night background (matches the app) ----
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = bg;
+  const grad = ctx.createRadialGradient(W / 2, -160, 0, W / 2, -160, 1400);
+  grad.addColorStop(0, "#2A1650");
+  grad.addColorStop(0.6, "#170D2E");
+  grad.addColorStop(1, "#170D2E");
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  // giant seal watermark, top-right bleed
-  drawSeal(ctx, seal, ink, W - 110 - 560, -60, 560, { alpha: 0.13, rotateDeg: -10 });
+  // ---- card geometry ----
+  const cardX = 46;
+  const cardW = W - 2 * cardX; // 988
+  const cPad = 46; // card inner padding
+  const innerX = cardX + cPad;
+  const innerW = cardW - 2 * cPad; // 896
+  const boxPad = 32;
+  const gap = 22;
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  // ===== measuring pass (compute card height) =====
+  const nameSize = Array.from(persona.name).length <= 6 ? 76 : 64;
+  const headerH = 40 + nameSize + 12 + 34; // 你是 + name + meta
+
+  ctx.font = '500 28px "Noto Sans TC",sans-serif';
+  const tagRows = layoutPills(ctx, persona.tags, innerW - 2 * boxPad, 14);
+  const pillH = 52;
+  const tagsH = boxPad * 2 + tagRows.length * pillH + (tagRows.length - 1) * 14;
+
+  ctx.font = '400 31px "Noto Sans TC",sans-serif';
+  const descLines = wrapLines(ctx, persona.desc, innerW - 2 * boxPad);
+  const descLineH = 52;
+  const descH = boxPad * 2 + descLines.length * descLineH;
+
+  ctx.font = '400 26px "Noto Sans TC",sans-serif';
+  const fourLines = wrapLines(ctx, `四強：${finalFourTitles.join("｜")}`, innerW - 2 * boxPad);
+  const fourLineH = 40;
+  const champH = boxPad + 36 + 20 + 62 + 16 + fourLines.length * fourLineH + boxPad - 6;
+
+  const matchH = 128;
+  const shoutH = 46;
+
+  const cardContentH =
+    headerH + gap + tagsH + gap + descH + gap + champH + gap + matchH + gap + shoutH;
+  const cardH = cPad + cardContentH + cPad - 8;
+
+  const logoH = 84;
+  const logoGap = 56;
+  const blockH = cardH + logoGap + logoH;
+  const topY = Math.max(120, Math.round((H - blockH) / 2));
+
+  // ===== draw pass =====
+  // card
+  ctx.fillStyle = bg;
+  roundRectPath(ctx, cardX, topY, cardW, cardH, 40);
+  ctx.fill();
+
+  // faint seal watermark, clipped inside the card
+  ctx.save();
+  roundRectPath(ctx, cardX, topY, cardW, cardH, 40);
+  ctx.clip();
+  drawSeal(ctx, seal, ink, cardX + cardW - 360, topY + cardH - 300, 460, { alpha: 0.06, rotateDeg: -10 });
+  ctx.restore();
+
+  // corner stamp seal
+  drawSeal(ctx, seal, ink, cardX + cardW - cPad - 116, topY + cPad - 6, 116, { rotateDeg: -8, withFrame: true });
 
   ctx.fillStyle = ink;
-  ctx.textAlign = "left";
+  let y = topY + cPad;
 
   // header
-  ctx.font = '700 34px "Noto Sans TC",sans-serif';
-  ctx.fillText("你是", M, 116);
-  const nameSize = Array.from(persona.name).length <= 6 ? 84 : 72;
+  ctx.font = '700 30px "Noto Sans TC",sans-serif';
+  ctx.globalAlpha = 0.85;
+  ctx.fillText("你是", innerX, y + 30);
+  ctx.globalAlpha = 1;
   ctx.font = `900 ${nameSize}px "Noto Serif TC","Noto Sans TC",serif`;
-  const nameBaseline = 116 + nameSize + 14;
-  ctx.fillText(persona.name, M, nameBaseline);
-  ctx.font = '400 28px "Noto Sans TC",sans-serif';
-  ctx.globalAlpha = 0.75;
-  const subBaseline = nameBaseline + 46;
-  ctx.fillText(`@${nickname}｜${persona.faction}｜七夕理想型世界盃 ${mode} 強`, M, subBaseline);
+  y += 40 + nameSize;
+  ctx.fillText(persona.name, innerX, y);
+  ctx.font = '400 26px "Noto Sans TC",sans-serif';
+  ctx.globalAlpha = 0.72;
+  y += 40;
+  ctx.fillText(`@${nickname}｜${persona.faction}｜七夕理想型世界盃 ${mode} 強`, innerX, y);
   ctx.globalAlpha = 1;
 
-  // stamp seal, top-right
-  drawSeal(ctx, seal, ink, W - M - 150, 84, 150, { rotateDeg: -8, withFrame: true });
-
-  let y = subBaseline + 44; // top of first info box
-
-  // ---- 口頭禪 pills box ----
+  // 口頭禪 pills box
+  y += gap - 4;
+  ctx.fillStyle = WHITE_BOX;
+  roundRectPath(ctx, innerX, y, innerW, tagsH, 24);
+  ctx.fill();
   {
-    const padX = 36;
-    const padY = 30;
-    const pillH = 52;
-    const pillGap = 14;
+    let py = y + boxPad;
     ctx.font = '500 28px "Noto Sans TC",sans-serif';
-    // lay out pills into rows
-    const rows: { text: string; w: number }[][] = [[]];
-    let rowW = 0;
-    const maxRowW = contentW - 2 * padX;
-    for (const tag of persona.tags) {
-      const w = ctx.measureText(tag).width + 52; // 26px h-pad each side
-      const row = rows[rows.length - 1]!;
-      if (row.length > 0 && rowW + pillGap + w > maxRowW) {
-        rows.push([]);
-        rowW = 0;
-      }
-      rows[rows.length - 1]!.push({ text: tag, w });
-      rowW += (row.length > 0 ? pillGap : 0) + w;
-    }
-    const boxH = padY * 2 + rows.length * pillH + (rows.length - 1) * pillGap;
-    ctx.fillStyle = WHITE_BOX;
-    roundRectPath(ctx, M, y, contentW, boxH, 28);
-    ctx.fill();
-    // pills
-    let py = y + padY;
-    for (const row of rows) {
-      let px = M + padX;
-      for (const pill of row) {
+    for (const row of tagRows) {
+      let px = innerX + boxPad;
+      for (const pill of row.pills) {
         ctx.fillStyle = WHITE_PILL;
         roundRectPath(ctx, px, py, pill.w, pillH, pillH / 2);
         ctx.fill();
         ctx.fillStyle = ink;
         ctx.textBaseline = "middle";
-        ctx.fillText(pill.text, px + 26, py + pillH / 2 + 1);
+        ctx.fillText(pill.text, px + 24, py + pillH / 2 + 1);
         ctx.textBaseline = "alphabetic";
-        px += pill.w + pillGap;
+        px += pill.w + 14;
       }
-      py += pillH + pillGap;
+      py += pillH + 14;
     }
-    y += boxH + 26;
   }
+  y += tagsH + gap;
 
-  // ---- desc box ----
-  {
-    const padX = 38;
-    const padY = 34;
-    const lineH = 59;
-    ctx.font = '400 31px "Noto Sans TC",sans-serif';
-    const lines = wrapLines(ctx, persona.desc, contentW - 2 * padX);
-    const boxH = padY * 2 + lines.length * lineH - (lineH - 40);
-    ctx.fillStyle = WHITE_BOX;
-    roundRectPath(ctx, M, y, contentW, boxH, 28);
-    ctx.fill();
-    ctx.fillStyle = ink;
-    lines.forEach((l, i) => ctx.fillText(l, M + padX, y + padY + 40 + i * lineH));
-    y += boxH + 26;
-  }
+  // desc box
+  ctx.fillStyle = WHITE_BOX;
+  roundRectPath(ctx, innerX, y, innerW, descH, 24);
+  ctx.fill();
+  ctx.fillStyle = ink;
+  ctx.font = '400 31px "Noto Sans TC",sans-serif';
+  descLines.forEach((l, i) => ctx.fillText(l, innerX + boxPad, y + boxPad + 34 + i * descLineH));
+  y += descH + gap;
 
-  // ---- champion box (only framed box) ----
+  // champion framed box
   {
-    const padX = 38;
-    const boxTop = y;
-    // fill remaining space above the "報到" line + footer band
-    const footerBandTop = H - 150;
-    const shoutY = footerBandTop - 60;
-    const boxH = shoutY - 40 - boxTop;
+    const top = y;
     ctx.fillStyle = WHITE_BOX;
-    roundRectPath(ctx, M, boxTop, contentW, boxH, 28);
+    roundRectPath(ctx, innerX, top, innerW, champH, 24);
     ctx.fill();
     ctx.strokeStyle = frame;
     ctx.lineWidth = 4;
-    roundRectPath(ctx, M + 2, boxTop + 2, contentW - 4, boxH - 4, 26);
+    roundRectPath(ctx, innerX + 2, top + 2, innerW - 4, champH - 4, 22);
     ctx.stroke();
 
     ctx.fillStyle = ink;
     ctx.globalAlpha = 0.7;
     ctx.font = '500 26px "Noto Sans TC",sans-serif';
-    ctx.fillText("天字第一號條件", M + padX, boxTop + 60);
+    ctx.fillText("天字第一號條件", innerX + boxPad, top + boxPad + 26);
     ctx.globalAlpha = 1;
-    ctx.font = '900 56px "Noto Serif TC","Noto Sans TC",serif';
-    ctx.fillText(`「${championTitle}」`, M + padX, boxTop + 132);
+    // champion title — shrink font if it would overflow
+    let champFont = 50;
+    const champText = `「${championTitle}」`;
+    ctx.font = `800 ${champFont}px "Noto Serif TC","Noto Sans TC",serif`;
+    while (ctx.measureText(champText).width > innerW - 2 * boxPad && champFont > 34) {
+      champFont -= 2;
+      ctx.font = `800 ${champFont}px "Noto Serif TC","Noto Sans TC",serif`;
+    }
+    ctx.fillText(champText, innerX + boxPad, top + boxPad + 26 + 20 + champFont);
     ctx.font = '400 26px "Noto Sans TC",sans-serif';
     ctx.globalAlpha = 0.85;
-    const fourLine = `四強：${finalFourTitles.join("｜")}`;
-    const fourTrimmed = Array.from(fourLine).length > 30 ? Array.from(fourLine).slice(0, 30).join("") + "…" : fourLine;
-    ctx.fillText(fourTrimmed, M + padX, boxTop + 184);
+    const fourTop = top + boxPad + 26 + 20 + 62 + 16;
+    fourLines.forEach((l, i) => ctx.fillText(l, innerX + boxPad, fourTop + i * fourLineH));
     ctx.globalAlpha = 1;
-
-    // shout line
-    ctx.font = '700 34px "Noto Sans TC",sans-serif';
-    ctx.textAlign = "center";
-    ctx.fillText("符合的請在留言區報到 🙋", W / 2, shoutY);
-    ctx.textAlign = "left";
+    y += champH + gap;
   }
 
-  // ---- footer brand band (ink bg) ----
+  // 適合交往 / 適合交友
   {
-    const bandTop = H - 150;
-    ctx.fillStyle = ink;
-    ctx.fillRect(0, bandTop, W, 150);
-    const midY = bandTop + 75;
+    const half = (innerW - 20) / 2;
+    const drawMatch = (bx: number, label: string, value: string) => {
+      ctx.fillStyle = WHITE_BOX;
+      roundRectPath(ctx, bx, y, half, matchH, 24);
+      ctx.fill();
+      ctx.fillStyle = ink;
+      ctx.textAlign = "center";
+      ctx.globalAlpha = 0.7;
+      ctx.font = '500 25px "Noto Sans TC",sans-serif';
+      ctx.fillText(label, bx + half / 2, y + 48);
+      ctx.globalAlpha = 1;
+      ctx.font = '800 36px "Noto Serif TC","Noto Sans TC",serif';
+      ctx.fillText(value, bx + half / 2, y + 96);
+      ctx.textAlign = "left";
+    };
+    drawMatch(innerX, "適合交往", dateFaction);
+    drawMatch(innerX + half + 20, "適合交友", friendFaction);
+    y += matchH + gap;
+  }
 
-    // left: real Joysee logo (if preloaded) + call-to-action line.
-    ctx.textBaseline = "middle";
-    if (logo && logo.complete && logo.naturalWidth > 0) {
-      const lh = 60;
-      const lw = (logo.naturalWidth / logo.naturalHeight) * lh;
-      ctx.drawImage(logo, M, midY - lh / 2 - 12, lw, lh);
-    } else {
-      ctx.fillStyle = bg;
-      ctx.font = '800 34px "Noto Serif TC",sans-serif';
-      ctx.fillText("揪西歡玩 Joysee", M, midY - 16);
-    }
-    ctx.fillStyle = bg;
-    ctx.globalAlpha = 0.9;
-    ctx.font = '400 24px "Noto Sans TC",sans-serif';
-    ctx.fillText("掃碼報名七夕單身限定活動", M, midY + 26);
-    ctx.globalAlpha = 1;
+  // 符合的請在留言區報到 🙋 你的又是哪型？
+  ctx.fillStyle = ink;
+  ctx.textAlign = "center";
+  ctx.font = '700 32px "Noto Sans TC",sans-serif';
+  ctx.fillText("符合的請在留言區報到 🙋 你的又是哪型？", W / 2, y + 34);
+  ctx.textAlign = "left";
 
-    // right: title + QR placeholder
-    const qrSize = 96;
-    const qrX = W - M - qrSize;
-    const qrY = midY - qrSize / 2;
-    ctx.fillStyle = bg;
-    roundRectPath(ctx, qrX, qrY, qrSize, qrSize, 14);
-    ctx.fill();
-    ctx.fillStyle = ink;
-    ctx.font = '600 20px "Noto Sans TC",sans-serif';
+  // ---- Joysee logo on the night bg, below the card ----
+  const logoY = topY + cardH + logoGap;
+  if (logo && logo.complete && logo.naturalWidth > 0) {
+    const lw = (logo.naturalWidth / logo.naturalHeight) * logoH;
+    ctx.drawImage(logo, (W - lw) / 2, logoY, lw, logoH);
+  } else {
+    ctx.fillStyle = "#E8C468";
     ctx.textAlign = "center";
-    ctx.fillText("QR", qrX + qrSize / 2, midY);
+    ctx.font = '800 40px "Noto Serif TC",sans-serif';
+    ctx.fillText("揪西歡玩 Joysee", W / 2, logoY + 50);
     ctx.textAlign = "left";
-
-    ctx.fillStyle = bg;
-    ctx.font = '800 30px "Noto Serif TC",sans-serif';
-    ctx.textAlign = "right";
-    ctx.fillText("七夕理想型世界盃", qrX - 18, midY);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
   }
 }
 
