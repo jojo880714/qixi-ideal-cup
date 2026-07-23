@@ -41,7 +41,7 @@ export interface Persona {
 export const PERSONAS: Record<FactionKey, Persona> = {
   soul: {
     key: "soul",
-    name: "頻率至上型單身",
+    name: "靈魂共鳴派",
     faction: "靈魂共鳴派",
     bg: "#C9BDE8",
     ink: "#42375F",
@@ -58,7 +58,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   safe: {
     key: "safe",
-    name: "穩穩的幸福型單身",
+    name: "安全感至上派",
     faction: "安全感至上派",
     bg: "#C6D3A5",
     ink: "#4B5732",
@@ -75,7 +75,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   life: {
     key: "life",
-    name: "日常即浪漫型單身",
+    name: "生活合拍派",
     faction: "生活合拍派",
     bg: "#E6D8C3",
     ink: "#5F5238",
@@ -92,7 +92,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   spark: {
     key: "spark",
-    name: "一眼淪陷型單身",
+    name: "怦然心動派",
     faction: "怦然心動派",
     bg: "#F2C6CF",
     ink: "#7C4050",
@@ -109,7 +109,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   grow: {
     key: "grow",
-    name: "並肩前行型單身",
+    name: "上進成長派",
     faction: "上進成長派",
     bg: "#BCCBDE",
     ink: "#37496B",
@@ -126,7 +126,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   care: {
     key: "care",
-    name: "小事最動人型單身",
+    name: "溫柔照顧派",
     faction: "溫柔照顧派",
     bg: "#F3D6B9",
     ink: "#7A5432",
@@ -143,7 +143,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   free: {
     key: "free",
-    name: "自由戀愛型單身",
+    name: "自由尊重派",
     faction: "自由尊重派",
     bg: "#BFE0D6",
     ink: "#33594E",
@@ -160,7 +160,7 @@ export const PERSONAS: Record<FactionKey, Persona> = {
   },
   fun: {
     key: "fun",
-    name: "人生玩伴型單身",
+    name: "玩樂冒險派",
     faction: "玩樂冒險派",
     bg: "#F0E2A6",
     ink: "#6B5B24",

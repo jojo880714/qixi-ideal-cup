@@ -143,33 +143,34 @@ export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData):
   const cPad = 46; // card inner padding
   const innerX = cardX + cPad;
   const innerW = cardW - 2 * cPad; // 896
-  const boxPad = 32;
-  const gap = 22;
+  const boxPad = 38;
+  const gap = 38;
 
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
   // ===== measuring pass (compute card height) =====
-  const nameSize = Array.from(persona.name).length <= 6 ? 76 : 64;
-  const headerH = 40 + nameSize + 12 + 34; // 你是 + name + meta
+  const nameSize = Array.from(persona.name).length <= 6 ? 78 : 66;
+  const headerH = 48 + nameSize + 48; // 你是 + name + meta
 
   ctx.font = '500 28px "Noto Sans TC",sans-serif';
   const tagRows = layoutPills(ctx, persona.tags, innerW - 2 * boxPad, 14);
-  const pillH = 52;
+  const pillH = 54;
   const tagsH = boxPad * 2 + tagRows.length * pillH + (tagRows.length - 1) * 14;
 
   ctx.font = '400 31px "Noto Sans TC",sans-serif';
   const descLines = wrapLines(ctx, persona.desc, innerW - 2 * boxPad);
-  const descLineH = 52;
-  const descH = boxPad * 2 + descLines.length * descLineH;
+  const descLineH = 58;
+  const descH = boxPad * 2 + descLines.length * descLineH - 6;
 
   ctx.font = '400 26px "Noto Sans TC",sans-serif';
   const fourLines = wrapLines(ctx, `四強：${finalFourTitles.join("｜")}`, innerW - 2 * boxPad);
-  const fourLineH = 40;
-  const champH = boxPad + 36 + 20 + 62 + 16 + fourLines.length * fourLineH + boxPad - 6;
+  const fourLineH = 42;
+  // matches the draw pass: fourTop = top + boxPad + 124, then lines + bottom pad.
+  const champH = boxPad + 124 + (fourLines.length - 1) * fourLineH + 48;
 
-  const matchH = 128;
-  const shoutH = 46;
+  const matchH = 146;
+  const shoutH = 48;
 
   const cardContentH =
     headerH + gap + tagsH + gap + descH + gap + champH + gap + matchH + gap + shoutH;
@@ -202,19 +203,19 @@ export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData):
   // header
   ctx.font = '700 30px "Noto Sans TC",sans-serif';
   ctx.globalAlpha = 0.85;
-  ctx.fillText("你是", innerX, y + 30);
+  ctx.fillText("你是", innerX, y + 34);
   ctx.globalAlpha = 1;
   ctx.font = `900 ${nameSize}px "Noto Serif TC","Noto Sans TC",serif`;
-  y += 40 + nameSize;
+  y += 48 + nameSize;
   ctx.fillText(persona.name, innerX, y);
   ctx.font = '400 26px "Noto Sans TC",sans-serif';
   ctx.globalAlpha = 0.72;
-  y += 40;
-  ctx.fillText(`@${nickname}｜${persona.faction}｜七夕理想型世界盃 ${mode} 強`, innerX, y);
+  y += 48;
+  ctx.fillText(`@${nickname}｜七夕理想型世界盃 ${mode} 強`, innerX, y);
   ctx.globalAlpha = 1;
 
   // 口頭禪 pills box
-  y += gap - 4;
+  y += gap;
   ctx.fillStyle = WHITE_BOX;
   roundRectPath(ctx, innerX, y, innerW, tagsH, 24);
   ctx.fill();

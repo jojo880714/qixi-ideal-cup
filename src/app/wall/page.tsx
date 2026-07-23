@@ -46,10 +46,7 @@ export default async function WallPage() {
           <div className="wall-big-label">人已經測出自己的天字第一號條件</div>
           {top && (
             <div className="wall-top">
-              目前最多人是{" "}
-              <b>
-                {personaName(top.persona_key)}（{factionName(top.persona_key)}）
-              </b>
+              目前最多人是 <b>{personaName(top.persona_key)}</b>
             </div>
           )}
         </div>

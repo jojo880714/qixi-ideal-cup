@@ -36,7 +36,7 @@ export function ResultCard({
       <p className="rc-eyebrow">你是</p>
       <p className="rc-title">{persona.name}</p>
       <p className="rc-nick">
-        @{nickname}｜{persona.faction}｜七夕理想型世界盃 {mode} 強
+        @{nickname}｜七夕理想型世界盃 {mode} 強
       </p>
       <div className="rc-box">
         <h4>口頭禪</h4>

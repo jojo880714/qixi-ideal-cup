@@ -118,7 +118,7 @@ export default async function OgImage({ params }: { params: { id: string } }) {
           <div style={{ fontSize: 28, opacity: 0.75, display: "flex", letterSpacing: 4 }}>你是</div>
           <div style={{ fontSize: 66, fontWeight: 700, display: "flex", marginTop: 4 }}>{persona.name}</div>
           <div style={{ fontSize: 24, opacity: 0.75, marginTop: 12, display: "flex" }}>
-            @{row.nickname}｜{persona.faction}｜七夕理想型世界盃 {row.mode} 強
+            @{row.nickname}｜七夕理想型世界盃 {row.mode} 強
           </div>
           <div
             style={{
