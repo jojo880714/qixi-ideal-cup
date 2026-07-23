@@ -98,7 +98,15 @@ body {
   justify-content: center;
 }
 
-/* Joysee 標誌佔位（待真實 logo 資產替換，見 JoyseeLogo.tsx） */
+/* Joysee 標誌（合作方提供，public/joysee-logo.png） */
+.joysee-logo-img {
+  height: 30px;
+  width: auto;
+  display: block;
+  opacity: 0.95;
+}
+
+/* （舊）文字佔位樣式，保留備用 */
 .joysee-logo {
   display: inline-flex;
   align-items: center;
