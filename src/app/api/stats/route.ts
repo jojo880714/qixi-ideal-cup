@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { getSupabaseAnonClient } from "@/lib/supabase/client";
 import { resolveTraitTitle } from "@/lib/results";
 import type { PersonaDistributionRow, TraitStatsRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
-// This queries live Supabase data via the service-role key — never
-// statically prerender it. Freshness is handled by the Cache-Control
-// header below instead of Next's build-time ISR.
+// Queries live Supabase data — never statically prerender it. Freshness is
+// handled by the Cache-Control header below.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = getSupabaseServiceRoleClient();
+  // The two aggregate views are granted to `anon` (they expose only counts,
+  // never rows — see supabase/schema.sql), so the public anon key is enough
+  // and no service-role key is needed. Individual result rows remain
+  // unreadable by anon.
+  const supabase = getSupabaseAnonClient();
 
   const [personaRes, traitRes] = await Promise.all([
     supabase.from("persona_distribution").select("*"),

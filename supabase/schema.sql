@@ -90,8 +90,16 @@ revoke all on function public.get_result_by_id(uuid) from public;
 grant execute on function public.get_result_by_id(uuid) to anon;
 
 -- ---------------------------------------------------------------------
--- Stats views. Only reachable via the service-role key from server-side
--- API routes (see app/api/stats/route.ts) — never granted to anon.
+-- Stats views (public aggregates). These expose ONLY aggregated counts —
+-- per-persona totals and per-trait champion/final-four counts. No row ids,
+-- no nicknames, nothing per-user. A Postgres view runs with its owner's
+-- privileges by default, so these can read `public.results` even though the
+-- `anon` role cannot read that table directly (see the deliberate lack of a
+-- SELECT policy above). We therefore grant `anon` SELECT on the views only:
+-- the aggregate numbers are public campaign content ("全站最多人選的條件"),
+-- while individual rows stay locked. `/api/stats` reads these with the anon
+-- key and caches the response — no service-role key needed anywhere in the
+-- app.
 -- ---------------------------------------------------------------------
 
 -- 8 型人格分布：完賽總數、各人格佔比
@@ -133,3 +141,7 @@ select
 from games ff
 group by ff.final_four_id
 order by champion_count desc, final_four_count desc;
+
+-- Expose only the aggregate views to anon (see block comment above).
+grant select on public.persona_distribution to anon;
+grant select on public.trait_stats to anon;
