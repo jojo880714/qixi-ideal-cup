@@ -28,7 +28,7 @@ export function HomeScreen({ onStart }: { onStart: (mode: Mode, nickname: string
         <input
           id="nickname"
           maxLength={NICKNAME_MAX_LENGTH * 2}
-          placeholder="例如：週五夜的孤獨美食家"
+          placeholder="請輸入你的暱稱"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
