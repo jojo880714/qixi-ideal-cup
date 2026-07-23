@@ -37,19 +37,23 @@ function supabaseConfigured(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-async function supabaseRateLimit(identifier: string): Promise<{ success: boolean }> {
+async function supabaseRateLimit(
+  identifier: string,
+  max: number,
+  windowSeconds: number,
+): Promise<{ success: boolean }> {
   const supabase = getSupabaseAnonClient();
   const { data, error } = await supabase.rpc("check_rate_limit", {
     p_ip: identifier,
-    p_max: MAX_REQUESTS,
-    p_window_seconds: WINDOW_SECONDS,
+    p_max: max,
+    p_window_seconds: windowSeconds,
   });
   // Fail open on infrastructure error: a transient DB hiccup must not block
   // legitimate completions. Abuse is still bounded by the in-memory guard
   // that runs in the same instance for the current window.
   if (error) {
     console.error("[rateLimit] supabase check_rate_limit failed, failing open:", error.message);
-    return memoryRateLimit(identifier);
+    return memoryRateLimit(identifier, max, windowSeconds);
   }
   return { success: data === true };
 }
@@ -58,31 +62,44 @@ async function supabaseRateLimit(identifier: string): Promise<{ success: boolean
 
 const memoryHits = new Map<string, number[]>();
 
-function memoryRateLimit(key: string): { success: boolean } {
+function memoryRateLimit(key: string, max: number, windowSeconds: number): { success: boolean } {
   const now = Date.now();
-  const hits = (memoryHits.get(key) ?? []).filter((t) => now - t < WINDOW_SECONDS * 1000);
+  const hits = (memoryHits.get(key) ?? []).filter((t) => now - t < windowSeconds * 1000);
   hits.push(now);
   memoryHits.set(key, hits);
-  return { success: hits.length <= MAX_REQUESTS };
+  return { success: hits.length <= max };
 }
 
 /**
- * Checks whether `identifier` (client IP) is within the allowed write rate:
- * MAX_REQUESTS per WINDOW_SECONDS. Backend priority:
- *   1. Upstash Redis, if configured (UPSTASH_REDIS_REST_URL/TOKEN)
+ * Generic per-identifier limiter. Backend priority:
+ *   1. Upstash Redis, if configured (only used for the default write limit)
  *   2. Supabase Postgres (default here — distributed, no extra account)
  *   3. In-memory (local dev only; per-instance, not for production)
  */
-export async function checkRateLimit(identifier: string): Promise<{ success: boolean }> {
-  const upstash = getUpstashLimiter();
-  if (upstash) {
-    const { success } = await upstash.limit(identifier);
-    return { success };
+export async function checkRateLimitN(
+  identifier: string,
+  max: number,
+  windowSeconds: number,
+): Promise<{ success: boolean }> {
+  // Upstash limiter is preconfigured for the write limit only; for custom
+  // limits (e.g. the lenient tracking limit) use Supabase / memory directly.
+  if (max === MAX_REQUESTS && windowSeconds === WINDOW_SECONDS) {
+    const upstash = getUpstashLimiter();
+    if (upstash) {
+      const { success } = await upstash.limit(identifier);
+      return { success };
+    }
   }
   if (supabaseConfigured()) {
-    return supabaseRateLimit(identifier);
+    const key = `${identifier}:${max}:${windowSeconds}`;
+    return supabaseRateLimit(key, max, windowSeconds);
   }
-  return memoryRateLimit(identifier);
+  return memoryRateLimit(identifier, max, windowSeconds);
+}
+
+/** Write-endpoint limit: MAX_REQUESTS per WINDOW_SECONDS (used by /api/results). */
+export async function checkRateLimit(identifier: string): Promise<{ success: boolean }> {
+  return checkRateLimitN(identifier, MAX_REQUESTS, WINDOW_SECONDS);
 }
 
 /** Extracts the best-effort client IP from standard proxy headers (Vercel sets x-forwarded-for). */

@@ -3,12 +3,18 @@ import { Analytics } from "@vercel/analytics/react";
 import { getSiteUrl } from "@/lib/siteUrl";
 import "./globals.css";
 
+const SHARE_TITLE = "七夕理想型世界盃｜想找人一起過七夕嗎";
+const SHARE_DESC = "從上百個理想型條件一路淘汰到底，測出你最在意什麼——貼出來，讓符合的人自己來找你。";
+
 export const metadata: Metadata = {
   // Absolute base for OG images / canonical URLs. Resolves to
   // NEXT_PUBLIC_SITE_URL → VERCEL_URL → localhost (see lib/siteUrl).
   metadataBase: new URL(getSiteUrl()),
   title: "七夕理想型世界盃｜單身限定",
-  description: "從上百個理想型條件一路淘汰到底，測出你最在意什麼——貼出來，讓符合的人自己來找你。",
+  description: SHARE_DESC,
+  // og:image is supplied automatically by app/opengraph-image.tsx.
+  openGraph: { title: SHARE_TITLE, description: SHARE_DESC, type: "website" },
+  twitter: { card: "summary_large_image", title: SHARE_TITLE, description: SHARE_DESC },
 };
 
 export const viewport: Viewport = {

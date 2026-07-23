@@ -6,6 +6,7 @@ import { getResultUrl, getSignupUrl } from "@/lib/siteUrl";
 import { fetchResultById } from "@/lib/supabase/getResult";
 import { ResultCard } from "@/components/ResultCard";
 import { ResultRevisitTracker } from "@/components/ResultRevisitTracker";
+import { SignupCta } from "@/components/SignupCta";
 import { BrandFooter } from "@/components/BrandFooter";
 import { StarField } from "@/components/StarField";
 
@@ -68,11 +69,7 @@ export default async function ResultPage({ params }: Props) {
           <a className="primary" href="/" style={{ textAlign: "center", display: "block" }}>
             🏆 換我也來測一次
           </a>
-          {signupUrl && (
-            <a className="cta-signup" href={signupUrl} target="_blank" rel="noopener noreferrer">
-              🎋 報名實體聯誼活動
-            </a>
-          )}
+          {signupUrl && <SignupCta url={signupUrl} personaKey={row.persona_key} />}
         </div>
         <BrandFooter />
       </section>

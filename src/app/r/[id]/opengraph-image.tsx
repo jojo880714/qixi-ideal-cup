@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { PERSONAS } from "@/data/personas";
 import { resolveTraitTitle } from "@/lib/results";
 import { fetchResultById } from "@/lib/supabase/getResult";
+import { JOYSEE_LOGO_DATA_URI } from "@/lib/logoDataUri";
 
 export const runtime = "edge";
 export const alt = "七夕理想型世界盃 結果卡";
@@ -136,7 +137,7 @@ export default async function OgImage({ params }: { params: { id: string } }) {
           <div style={{ fontSize: 24, marginTop: 22, opacity: 0.85, display: "flex" }}>符合的請在留言區報到 🙋</div>
         </div>
 
-        {/* ink brand footer band (Joysee logo asset pending — text placeholder) */}
+        {/* ink brand footer band with the real Joysee logo */}
         <div
           style={{
             height: 84,
@@ -148,7 +149,8 @@ export default async function OgImage({ params }: { params: { id: string } }) {
             padding: "0 70px",
           }}
         >
-          <div style={{ display: "flex", fontSize: 26, fontWeight: 700 }}>揪西歡玩 Joysee</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={JOYSEE_LOGO_DATA_URI} width={132} height={74} alt="" />
           <div style={{ display: "flex", fontSize: 26, fontWeight: 700 }}>七夕理想型世界盃</div>
         </div>
       </div>

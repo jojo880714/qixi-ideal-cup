@@ -32,6 +32,15 @@ export async function POST(request: Request) {
   const nickname = sanitizeNickname((body as Record<string, unknown>).nickname);
   const id = randomUUID();
 
+  // Optional analytics-only pick snapshot. Not security-critical (it never
+  // affects the result); accept it defensively and cap its size.
+  const rawPicks = (body as Record<string, unknown>).picks;
+  let picks: unknown = null;
+  if (Array.isArray(rawPicks)) {
+    const serialized = JSON.stringify(rawPicks);
+    if (serialized.length <= 20_000) picks = rawPicks;
+  }
+
   const supabase = getSupabaseAnonClient();
   const { error } = await supabase.from("results").insert({
     id,
@@ -40,6 +49,7 @@ export async function POST(request: Request) {
     champion_id: submission.championId,
     final_four_ids: submission.finalFourIds,
     nickname,
+    picks,
   });
 
   if (error) {

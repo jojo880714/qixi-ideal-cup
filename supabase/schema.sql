@@ -196,3 +196,156 @@ order by champion_count desc, final_four_count desc;
 -- Expose only the aggregate views to anon (see block comment above).
 grant select on public.persona_distribution to anon;
 grant select on public.trait_stats to anon;
+
+-- ============================================================
+-- Analytics / admin data layer (events, tracking, dashboards)
+-- Set the real admin key at apply time (replace __ADMIN_KEY__).
+-- ============================================================
+
+-- Full pick snapshot for post-hoc per-round content ("87% 第一輪就淘汰X").
+alter table public.results add column if not exists picks jsonb;
+
+-- ---- events ----
+create table if not exists public.events (
+  id bigint generated always as identity primary key,
+  name text not null,
+  ip_hash text,
+  session_id text,
+  persona_key text,
+  mode smallint,
+  created_at timestamptz not null default now()
+);
+create index if not exists events_name_idx on public.events (name);
+create index if not exists events_created_idx on public.events (created_at);
+create index if not exists events_iphash_idx on public.events (ip_hash);
+
+alter table public.events enable row level security;
+revoke all on public.events from anon, authenticated;
+
+-- anon may only record events through this validated function (no direct table access).
+create or replace function public.track_event(
+  p_name text, p_ip_hash text, p_session text, p_persona text, p_mode int
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_name not in (
+    'visit','quiz_start','quiz_complete','result_view','result_revisit',
+    'poster_download','share_copy','signup_click'
+  ) then
+    raise exception 'invalid event name: %', p_name;
+  end if;
+  insert into public.events (name, ip_hash, session_id, persona_key, mode)
+    values (p_name, nullif(p_ip_hash,''), nullif(p_session,''), nullif(p_persona,''), p_mode);
+end; $$;
+revoke all on function public.track_event(text,text,text,text,int) from public;
+grant execute on function public.track_event(text,text,text,text,int) to anon;
+
+-- ---- admin key ----
+create table if not exists public.admin_config (
+  id int primary key default 1,
+  admin_key text not null,
+  constraint admin_config_singleton check (id = 1)
+);
+alter table public.admin_config enable row level security;
+revoke all on public.admin_config from anon, authenticated;
+-- seed (replace __ADMIN_KEY__ at apply time)
+insert into public.admin_config (id, admin_key) values (1, '__ADMIN_KEY__')
+  on conflict (id) do update set admin_key = excluded.admin_key;
+
+-- ---- private admin metrics (key-gated) ----
+create or replace function public.admin_metrics(p_key text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_ok boolean;
+  result jsonb;
+begin
+  select (admin_key = p_key) into v_ok from public.admin_config where id = 1;
+  if not coalesce(v_ok, false) then
+    raise exception 'unauthorized';
+  end if;
+
+  with
+  ev as (select * from public.events),
+  agg as (
+    select
+      count(*) filter (where name='visit') as views,
+      count(distinct ip_hash) filter (where name='visit') as unique_visitors,
+      count(distinct coalesce(session_id, id::text)) filter (where name='quiz_start') as starts,
+      count(*) filter (where name='signup_click') as signup_clicks,
+      count(*) filter (where name='poster_download') as poster_downloads,
+      count(*) filter (where name='share_copy') as share_copies,
+      count(*) filter (where name='result_revisit') as revisits,
+      count(*) filter (where name='result_view') as result_views
+    from ev
+  ),
+  comp as (select count(*) as completions from public.results),
+  persona as (
+    select coalesce(jsonb_agg(jsonb_build_object('persona_key',persona_key,'total',total,'pct',pct) order by total desc), '[]'::jsonb) as data
+    from public.persona_distribution
+  ),
+  modes as (
+    select coalesce(jsonb_object_agg(mode, c), '{}'::jsonb) as data
+    from (select mode, count(*) c from public.results group by mode) m
+  ),
+  topc as (
+    select coalesce(jsonb_agg(jsonb_build_object('trait_id',champion_id,'wins',c) order by c desc), '[]'::jsonb) as data
+    from (select champion_id, count(*) c from public.results group by champion_id order by c desc limit 8) t
+  ),
+  daily as (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'day', to_char(d, 'MM-DD'),
+      'visitors', coalesce(v.uv,0),
+      'completions', coalesce(r.c,0)
+    ) order by d), '[]'::jsonb) as data
+    from generate_series((current_date - interval '13 days')::date, current_date, interval '1 day') d
+    left join (
+      select created_at::date dd, count(distinct ip_hash) uv from public.events where name='visit' group by 1
+    ) v on v.dd = d::date
+    left join (
+      select created_at::date dd, count(*) c from public.results group by 1
+    ) r on r.dd = d::date
+  )
+  select jsonb_build_object(
+    'views', agg.views,
+    'unique_visitors', agg.unique_visitors,
+    'starts', agg.starts,
+    'completions', comp.completions,
+    'signup_clicks', agg.signup_clicks,
+    'poster_downloads', agg.poster_downloads,
+    'share_copies', agg.share_copies,
+    'revisits', agg.revisits,
+    'result_views', agg.result_views,
+    'completion_rate_visitor', round(100.0 * comp.completions / nullif(agg.unique_visitors,0), 1),
+    'completion_rate_start', round(100.0 * comp.completions / nullif(agg.starts,0), 1),
+    'signup_ctr', round(100.0 * agg.signup_clicks / nullif(comp.completions,0), 1),
+    'persona_distribution', persona.data,
+    'mode_split', modes.data,
+    'top_conditions', topc.data,
+    'daily', daily.data
+  ) into result
+  from agg, comp, persona, modes, topc, daily;
+
+  return result;
+end; $$;
+revoke all on function public.admin_metrics(text) from public;
+grant execute on function public.admin_metrics(text) to anon;
+
+-- ---- public share aggregates (safe, no key, no per-user data) ----
+create or replace function public.public_stats()
+returns jsonb
+language sql security definer set search_path = public stable as $$
+  select jsonb_build_object(
+    'completions', (select count(*) from public.results),
+    'persona_distribution', (
+      select coalesce(jsonb_agg(jsonb_build_object('persona_key',persona_key,'total',total,'pct',pct) order by total desc), '[]'::jsonb)
+      from public.persona_distribution
+    ),
+    'top_conditions', (
+      select coalesce(jsonb_agg(jsonb_build_object('trait_id',champion_id,'wins',c) order by c desc), '[]'::jsonb)
+      from (select champion_id, count(*) c from public.results group by champion_id order by c desc limit 5) t
+    )
+  );
+$$;
+revoke all on function public.public_stats() from public;
+grant execute on function public.public_stats() to anon;

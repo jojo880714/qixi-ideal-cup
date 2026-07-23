@@ -11,6 +11,8 @@ export interface PosterData {
   finalFourTitles: string[];
   dateFaction: string;
   friendFaction: string;
+  /** Preloaded Joysee logo for the footer band; falls back to text if absent/unloaded. */
+  logo?: HTMLImageElement | null;
 }
 
 /* ---------------- canvas helpers ---------------- */
@@ -97,7 +99,7 @@ const WHITE_PILL = "rgba(255,255,255,0.7)";
 export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const { persona, nickname, mode, championTitle, finalFourTitles } = data;
+  const { persona, nickname, mode, championTitle, finalFourTitles, logo } = data;
   const { bg, ink, frame, seal } = persona;
   const W = POSTER_WIDTH;
   const H = POSTER_HEIGHT;
@@ -237,15 +239,21 @@ export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData):
     ctx.fillRect(0, bandTop, W, 150);
     const midY = bandTop + 75;
 
-    // left: Joysee placeholder + call-to-action.
-    // NOTE: real Joysee logo asset pending — text placeholder, swap when provided.
-    ctx.fillStyle = bg;
+    // left: real Joysee logo (if preloaded) + call-to-action line.
     ctx.textBaseline = "middle";
-    ctx.font = '800 34px "Noto Serif TC",sans-serif';
-    ctx.fillText("揪西歡玩 Joysee", M, midY - 16);
+    if (logo && logo.complete && logo.naturalWidth > 0) {
+      const lh = 60;
+      const lw = (logo.naturalWidth / logo.naturalHeight) * lh;
+      ctx.drawImage(logo, M, midY - lh / 2 - 12, lw, lh);
+    } else {
+      ctx.fillStyle = bg;
+      ctx.font = '800 34px "Noto Serif TC",sans-serif';
+      ctx.fillText("揪西歡玩 Joysee", M, midY - 16);
+    }
+    ctx.fillStyle = bg;
     ctx.globalAlpha = 0.9;
     ctx.font = '400 24px "Noto Sans TC",sans-serif';
-    ctx.fillText("掃碼報名七夕單身限定活動", M, midY + 22);
+    ctx.fillText("掃碼報名七夕單身限定活動", M, midY + 26);
     ctx.globalAlpha = 1;
 
     // right: title + QR placeholder
