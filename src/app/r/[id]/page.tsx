@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PERSONAS } from "@/data/personas";
 import { resolveTraitTitle } from "@/lib/results";
+import { getResultUrl, getSignupUrl } from "@/lib/siteUrl";
 import { fetchResultById } from "@/lib/supabase/getResult";
 import { ResultCard } from "@/components/ResultCard";
 import { ResultRevisitTracker } from "@/components/ResultRevisitTracker";
+import { BrandFooter } from "@/components/BrandFooter";
 import { StarField } from "@/components/StarField";
 
 interface Props {
@@ -28,11 +30,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const persona = PERSONAS[row.persona_key];
   const title = `${row.nickname} 是「${persona.name}」｜七夕理想型世界盃`;
   const description = `天字第一號條件：「${resolveTraitTitle(row.champion_id)}」——符合的請在留言區報到 🙋`;
+  const url = getResultUrl(params.id);
 
   return {
     title,
     description,
-    openGraph: { title, description },
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: "website" },
     twitter: { card: "summary_large_image", title, description },
   };
 }
@@ -44,6 +48,7 @@ export default async function ResultPage({ params }: Props) {
   const persona = PERSONAS[row.persona_key];
   const championTitle = resolveTraitTitle(row.champion_id);
   const finalFourTitles = row.final_four_ids.map(resolveTraitTitle);
+  const signupUrl = getSignupUrl();
 
   return (
     <div className="wrap">
@@ -63,7 +68,13 @@ export default async function ResultPage({ params }: Props) {
           <a className="primary" href="/" style={{ textAlign: "center", display: "block" }}>
             🏆 換我也來測一次
           </a>
+          {signupUrl && (
+            <a className="cta-signup" href={signupUrl} target="_blank" rel="noopener noreferrer">
+              🎋 報名實體聯誼活動
+            </a>
+          )}
         </div>
+        <BrandFooter />
       </section>
     </div>
   );

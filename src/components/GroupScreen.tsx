@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import type { GroupItem } from "@/lib/engine";
+import { BridgeProgress } from "./BridgeProgress";
+import { BrandFooter } from "./BrandFooter";
 
 interface GroupScreenProps {
   group: GroupItem;
   groupNumberInRound: number;
   groupCountInRound: number;
-  progressPct: number;
+  stepsDone: number;
+  stepsTotal: number;
   onConfirm: (selectedIndices: number[]) => void;
   onOverPick: () => void;
 }
@@ -17,19 +20,19 @@ export function GroupScreen({
   group,
   groupNumberInRound,
   groupCountInRound,
-  progressPct,
+  stepsDone,
+  stepsTotal,
   onConfirm,
   onOverPick,
 }: GroupScreenProps) {
   const [selected, setSelected] = useState<number[]>([]);
+  const dense = group.items.length > 4;
 
   function toggle(i: number) {
     // Reads `selected` from the closure rather than a functional updater —
     // calling `onOverPick` (which updates GameApp's toast state) from
     // inside a setState updater triggers React's "Cannot update a
-    // component while rendering a different component" warning, since
-    // updater functions are expected to be pure and may be invoked outside
-    // a normal event-handler context (e.g. twice under Strict Mode).
+    // component while rendering a different component" warning.
     if (selected.includes(i)) {
       setSelected(selected.filter((x) => x !== i));
       return;
@@ -43,22 +46,23 @@ export function GroupScreen({
 
   return (
     <section className="screen" id="group">
-      <span className="stage-tag">{group.stage}</span>
+      <span className="stage-tag" aria-live="polite">
+        {group.stage}
+      </span>
       <p className="group-title">{group.label}</p>
       <p className="group-sub">
         本輪第 {groupNumberInRound} 組 / 共 {groupCountInRound} 組
       </p>
-      <div className="progress">
-        <i style={{ width: `${progressPct}%` }} />
-      </div>
+      <BridgeProgress stepsDone={stepsDone} stepsTotal={stepsTotal} />
       <p className="pick-hint">
         {group.items.length} 個條件，留下你最在意的 {group.pick} 個
       </p>
-      <div className="grid">
+      <div className={`grid${dense ? " dense" : ""}`}>
         {group.items.map((trait, i) => (
           <button
             key={trait.id}
             className={`trait-card${selected.includes(i) ? " sel" : ""}`}
+            aria-pressed={selected.includes(i)}
             onClick={() => toggle(i)}
           >
             {trait.title}
@@ -72,6 +76,7 @@ export function GroupScreen({
       >
         確認晉級 →
       </button>
+      <BrandFooter />
     </section>
   );
 }

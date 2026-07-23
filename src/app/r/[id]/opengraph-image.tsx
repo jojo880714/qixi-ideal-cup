@@ -93,32 +93,64 @@ export default async function OgImage({ params }: { params: { id: string } }) {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          padding: "60px 70px",
+          position: "relative",
           background: persona.bg,
           color: persona.ink,
           fontFamily: fonts.length > 0 ? "Noto Sans TC" : undefined,
         }}
       >
-        <div style={{ fontSize: 28, opacity: 0.75, display: "flex" }}>你是</div>
-        <div style={{ fontSize: 64, fontWeight: 700, display: "flex", marginTop: 4 }}>{persona.name}</div>
-        <div style={{ fontSize: 24, opacity: 0.75, marginTop: 12, display: "flex" }}>
-          @{row.nickname}｜{persona.faction}｜七夕理想型世界盃 {row.mode} 強
+        {/* giant seal watermark, top-right bleed */}
+        <svg
+          width={420}
+          height={420}
+          viewBox="0 0 64 64"
+          fill="none"
+          style={{ position: "absolute", top: -70, right: -80, opacity: 0.13, transform: "rotate(-10deg)" }}
+        >
+          <path d={persona.seal.d1} stroke={persona.ink} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+          {persona.seal.d2 ? (
+            <path d={persona.seal.d2} stroke={persona.ink} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+          ) : null}
+        </svg>
+
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "56px 70px 20px" }}>
+          <div style={{ fontSize: 28, opacity: 0.75, display: "flex", letterSpacing: 4 }}>你是</div>
+          <div style={{ fontSize: 66, fontWeight: 700, display: "flex", marginTop: 4 }}>{persona.name}</div>
+          <div style={{ fontSize: 24, opacity: 0.75, marginTop: 12, display: "flex" }}>
+            @{row.nickname}｜{persona.faction}｜七夕理想型世界盃 {row.mode} 強
+          </div>
+          <div
+            style={{
+              marginTop: 26,
+              padding: "22px 28px",
+              background: "rgba(255,255,255,0.55)",
+              border: `3px solid ${persona.frame}`,
+              borderRadius: 22,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ fontSize: 22, opacity: 0.7, display: "flex" }}>天字第一號條件</div>
+            <div style={{ fontSize: 44, fontWeight: 700, marginTop: 8, display: "flex" }}>「{championTitle}」</div>
+          </div>
+          <div style={{ fontSize: 24, marginTop: 22, opacity: 0.85, display: "flex" }}>符合的請在留言區報到 🙋</div>
         </div>
+
+        {/* ink brand footer band (Joysee logo asset pending — text placeholder) */}
         <div
           style={{
-            marginTop: 32,
-            padding: "20px 26px",
-            background: "rgba(255,255,255,0.55)",
-            borderRadius: 20,
+            height: 84,
+            background: persona.ink,
+            color: persona.bg,
             display: "flex",
-            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 70px",
           }}
         >
-          <div style={{ fontSize: 22, opacity: 0.7, display: "flex" }}>天字第一號條件</div>
-          <div style={{ fontSize: 40, fontWeight: 700, marginTop: 8, display: "flex" }}>「{championTitle}」</div>
+          <div style={{ display: "flex", fontSize: 26, fontWeight: 700 }}>揪西歡玩 Joysee</div>
+          <div style={{ display: "flex", fontSize: 26, fontWeight: 700 }}>七夕理想型世界盃</div>
         </div>
-        <div style={{ fontSize: 24, marginTop: 28, opacity: 0.85, display: "flex" }}>符合的請在留言區報到 🙋</div>
       </div>
     ),
     {

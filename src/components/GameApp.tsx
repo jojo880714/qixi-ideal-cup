@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { TRAITS } from "@/data/traits";
 import { PERSONAS } from "@/data/personas";
 import {
-  DUEL_STAGE_LABELS,
   getGameResult,
   initGame,
   submitDuelPick,
@@ -19,13 +18,18 @@ import {
   trackShareTextCopied,
 } from "@/lib/analytics";
 import { buildShareText, downloadCanvasAsPng, drawPosterToCanvas, POSTER_HEIGHT, POSTER_WIDTH } from "@/lib/poster";
+import { getSignupUrl } from "@/lib/siteUrl";
 import { HomeScreen } from "./HomeScreen";
 import { GroupScreen } from "./GroupScreen";
 import { DuelScreen } from "./DuelScreen";
+import { ChampionReveal } from "./ChampionReveal";
 import { ResultCard } from "./ResultCard";
+import { BrandFooter } from "./BrandFooter";
 import { StarField } from "./StarField";
 
 type SubmitStatus = "idle" | "submitting" | "done" | "error";
+
+const SIGNUP_URL = getSignupUrl();
 
 export function GameApp() {
   const [state, setState] = useState<GameState | null>(null);
@@ -33,6 +37,8 @@ export function GameApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [resultId, setResultId] = useState<string | null>(null);
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
+  // 冠軍戰結束後先播「星等爆發」揭曉，再顯示結果卡。
+  const [revealing, setRevealing] = useState(false);
   const posterCanvasRef = useRef<HTMLCanvasElement>(null);
   const submittedRef = useRef(false);
 
@@ -46,6 +52,7 @@ export function GameApp() {
     setNickname(sanitizedNickname);
     setResultId(null);
     setSubmitStatus("idle");
+    setRevealing(false);
     submittedRef.current = false;
     setState(initGame(mode, TRAITS));
   }
@@ -57,7 +64,10 @@ export function GameApp() {
 
   function handleDuelPick(side: 0 | 1) {
     if (!state) return;
-    setState(submitDuelPick(state, side));
+    const next = submitDuelPick(state, side);
+    // 冠軍戰剛結束（進入 result phase）→ 先進揭曉動畫。
+    if (next.phase === "result") setRevealing(true);
+    setState(next);
   }
 
   const result = state?.phase === "result" ? getGameResult(state) : null;
@@ -123,6 +133,7 @@ export function GameApp() {
       finalFourTitles: result.finalFour.map((t) => t.title),
       dateFaction: PERSONAS[persona.date].faction,
       friendFaction: PERSONAS[persona.friend].faction,
+      resultUrl: resultId ? `${window.location.origin}/r/${resultId}` : null,
     });
     navigator.clipboard
       .writeText(text)
@@ -135,12 +146,11 @@ export function GameApp() {
     setNickname("");
     setResultId(null);
     setSubmitStatus("idle");
+    setRevealing(false);
     submittedRef.current = false;
   }
 
-  const stepsDone = state?.stepsDone ?? 0;
-  const stepsTotal = state?.stepsTotal ?? 1;
-  const progressPct = Math.min(100, (stepsDone / stepsTotal) * 100);
+  const showResultCard = state?.phase === "result" && !revealing;
 
   return (
     <div className="wrap">
@@ -154,7 +164,8 @@ export function GameApp() {
           group={state.groupQueue[state.groupIdx]!}
           groupNumberInRound={state.groupIdx + 1}
           groupCountInRound={state.groupQueue.length}
-          progressPct={progressPct}
+          stepsDone={state.stepsDone}
+          stepsTotal={state.stepsTotal}
           onConfirm={handleGroupConfirm}
           onOverPick={() => showToast(`只能選 ${state.groupQueue[state.groupIdx]!.pick} 個，先取消一個吧`)}
         />
@@ -164,15 +175,18 @@ export function GameApp() {
         <DuelScreen
           key={`${state.duelStageIdx}-${state.duelIdx}`}
           pair={state.duels[state.duelIdx]!}
-          stageLabel={DUEL_STAGE_LABELS[state.duelStageIdx] ?? DUEL_STAGE_LABELS[0]}
+          stageIdx={state.duelStageIdx}
           duelNumberInStage={state.duelIdx + 1}
           duelCountInStage={state.duels.length}
-          progressPct={progressPct}
           onPick={handleDuelPick}
         />
       )}
 
-      {state && result && persona && (
+      {state && revealing && result && (
+        <ChampionReveal championTitle={result.champion.title} onDone={() => setRevealing(false)} />
+      )}
+
+      {showResultCard && result && persona && (
         <section className="screen" id="result">
           <ResultCard
             persona={persona}
@@ -187,6 +201,11 @@ export function GameApp() {
             <button className="primary" onClick={handleDownloadPoster}>
               🖼 下載我的單身人格卡
             </button>
+            {SIGNUP_URL && (
+              <a className="cta-signup" href={SIGNUP_URL} target="_blank" rel="noopener noreferrer">
+                🎋 報名實體聯誼活動
+              </a>
+            )}
             <button className="ghost" onClick={handleCopyShare}>
               📋 複製交友貼文文案
             </button>
@@ -202,6 +221,7 @@ export function GameApp() {
               ↺ 再測一次
             </button>
           </div>
+          <BrandFooter />
         </section>
       )}
 

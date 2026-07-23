@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { NICKNAME_MAX_LENGTH, sanitizeNickname } from "@/lib/sanitize";
 import type { Mode } from "@/lib/engine";
+import { BrandFooter } from "./BrandFooter";
 
 export function HomeScreen({ onStart }: { onStart: (mode: Mode, nickname: string) => void }) {
   const [nickname, setNickname] = useState("");
@@ -10,16 +11,16 @@ export function HomeScreen({ onStart }: { onStart: (mode: Mode, nickname: string
   return (
     <section className="screen" id="home">
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <p className="eyebrow">七 夕 單 身 限 定</p>
+        <p className="eyebrow">想找人一起過七夕嗎</p>
         <h1>理想型世界盃</h1>
         <p className="sub">
-          別人過七夕，我們選標準。
+          不擔心沒人過七夕，現在就決定理想型！
           <br />
           從上百個理想型條件一路淘汰到底，
           <br />
-          測出你的單身人格——貼出來，
+          測出你最在意什麼——貼出來，
           <br />
-          讓符合的人自己報到。
+          讓符合的人自己來找你。
         </p>
         <label className="fieldlabel" htmlFor="nickname">
           你的暱稱（會印在結果卡上）
@@ -42,6 +43,7 @@ export function HomeScreen({ onStart }: { onStart: (mode: Mode, nickname: string
           </button>
         </div>
       </div>
+      <BrandFooter />
     </section>
   );
 }

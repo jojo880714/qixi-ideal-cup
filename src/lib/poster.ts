@@ -1,4 +1,4 @@
-import type { Persona } from "@/data/personas";
+import type { Persona, PersonaSeal } from "@/data/personas";
 
 export const POSTER_WIDTH = 1080;
 export const POSTER_HEIGHT = 1440;
@@ -13,7 +13,9 @@ export interface PosterData {
   friendFaction: string;
 }
 
-function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+/* ---------------- canvas helpers ---------------- */
+
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -21,6 +23,52 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+interface SealOpts {
+  rotateDeg?: number;
+  alpha?: number;
+  withFrame?: boolean;
+}
+
+/**
+ * Draws a persona seal (viewBox 0..64 path space) into a `size`×`size` box at
+ * (x, y), optionally rotated about its own centre and with the rounded-rect
+ * stamp frame. Uses Path2D — browser-canvas only (this module runs client-side).
+ */
+function drawSeal(
+  ctx: CanvasRenderingContext2D,
+  seal: PersonaSeal,
+  color: string,
+  x: number,
+  y: number,
+  size: number,
+  opts: SealOpts = {},
+) {
+  const scale = size / 64;
+  ctx.save();
+  ctx.globalAlpha = opts.alpha ?? 1;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  if (opts.rotateDeg) {
+    ctx.translate(cx, cy);
+    ctx.rotate((opts.rotateDeg * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+  }
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (opts.withFrame) {
+    ctx.lineWidth = 2.5;
+    roundRectPath(ctx, 3, 3, 58, 58, 14);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 3.5;
+  ctx.stroke(new Path2D(seal.d1));
+  if (seal.d2) ctx.stroke(new Path2D(seal.d2));
+  ctx.restore();
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -38,93 +86,188 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 }
 
-/** Draws the shareable poster onto `canvas`, ported from the prototype's drawPoster(). */
+const WHITE_BOX = "rgba(255,255,255,0.55)";
+const WHITE_PILL = "rgba(255,255,255,0.7)";
+
+/**
+ * Draws the shareable poster (1080×1440) per Design Spec §04:
+ *  giant seal watermark · stamp · white info boxes · framed champion box ·
+ *  ink-coloured Joysee brand footer band. One master, recoloured per persona.
+ */
 export function drawPosterToCanvas(canvas: HTMLCanvasElement, data: PosterData): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const { persona, nickname, mode, championTitle, finalFourTitles, dateFaction, friendFaction } = data;
-  const W = canvas.width;
-  const H = canvas.height;
-  const M = 70;
+  const { persona, nickname, mode, championTitle, finalFourTitles } = data;
+  const { bg, ink, frame, seal } = persona;
+  const W = POSTER_WIDTH;
+  const H = POSTER_HEIGHT;
+  const M = 72;
+  const contentW = W - 2 * M;
 
-  ctx.fillStyle = persona.bg;
+  // base
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = persona.ink;
+
+  // giant seal watermark, top-right bleed
+  drawSeal(ctx, seal, ink, W - 110 - 560, -60, 560, { alpha: 0.13, rotateDeg: -10 });
+
+  ctx.fillStyle = ink;
   ctx.textAlign = "left";
 
+  // header
   ctx.font = '700 34px "Noto Sans TC",sans-serif';
-  ctx.fillText("你是", M, 140);
-  ctx.font = '900 78px "Noto Serif TC","Noto Sans TC",serif';
-  ctx.fillText(persona.name, M, 235);
+  ctx.fillText("你是", M, 116);
+  const nameSize = Array.from(persona.name).length <= 6 ? 84 : 72;
+  ctx.font = `900 ${nameSize}px "Noto Serif TC","Noto Sans TC",serif`;
+  const nameBaseline = 116 + nameSize + 14;
+  ctx.fillText(persona.name, M, nameBaseline);
   ctx.font = '400 28px "Noto Sans TC",sans-serif';
   ctx.globalAlpha = 0.75;
-  ctx.fillText(`@${nickname}｜${persona.faction}｜七夕理想型世界盃 ${mode} 強`, M, 290);
+  const subBaseline = nameBaseline + 46;
+  ctx.fillText(`@${nickname}｜${persona.faction}｜七夕理想型世界盃 ${mode} 強`, M, subBaseline);
   ctx.globalAlpha = 1;
 
-  let y = 340;
-  ctx.fillStyle = "rgba(255,255,255,.55)";
-  roundedRect(ctx, M, y, W - 2 * M, 150, 24);
-  ctx.fill();
-  ctx.fillStyle = persona.ink;
-  ctx.globalAlpha = 0.7;
-  ctx.font = '500 26px "Noto Sans TC",sans-serif';
-  ctx.fillText("口頭禪", M + 34, y + 52);
-  ctx.globalAlpha = 1;
-  ctx.font = '500 30px "Noto Sans TC",sans-serif';
-  ctx.fillText(persona.tags.slice(0, 2).join("  "), M + 34, y + 100);
-  ctx.fillText(persona.tags.slice(2).join("  "), M + 34, y + 140);
+  // stamp seal, top-right
+  drawSeal(ctx, seal, ink, W - M - 150, 84, 150, { rotateDeg: -8, withFrame: true });
 
-  y += 180;
-  ctx.font = '400 32px "Noto Sans TC",sans-serif';
-  const descLines = wrapLines(ctx, persona.desc, W - 2 * M - 70);
-  const descHeight = descLines.length * 52 + 60;
-  ctx.fillStyle = "rgba(255,255,255,.55)";
-  roundedRect(ctx, M, y, W - 2 * M, descHeight, 24);
-  ctx.fill();
-  ctx.fillStyle = persona.ink;
-  descLines.forEach((line, i) => ctx.fillText(line, M + 34, y + 62 + i * 52));
+  let y = subBaseline + 44; // top of first info box
 
-  y += descHeight + 30;
-  ctx.fillStyle = "rgba(255,255,255,.55)";
-  roundedRect(ctx, M, y, W - 2 * M, 210, 24);
-  ctx.fill();
-  ctx.fillStyle = persona.ink;
-  ctx.globalAlpha = 0.7;
-  ctx.font = '500 26px "Noto Sans TC",sans-serif';
-  ctx.fillText("天字第一號條件", M + 34, y + 52);
-  ctx.globalAlpha = 1;
-  ctx.font = '800 46px "Noto Serif TC","Noto Sans TC",serif';
-  ctx.fillText(`「${championTitle}」`, M + 34, y + 115);
-  ctx.font = '400 26px "Noto Sans TC",sans-serif';
-  ctx.globalAlpha = 0.85;
-  ctx.fillText(`四強：${finalFourTitles.join("｜")}`.slice(0, 32), M + 34, y + 170);
-  ctx.globalAlpha = 1;
+  // ---- 口頭禪 pills box ----
+  {
+    const padX = 36;
+    const padY = 30;
+    const pillH = 52;
+    const pillGap = 14;
+    ctx.font = '500 28px "Noto Sans TC",sans-serif';
+    // lay out pills into rows
+    const rows: { text: string; w: number }[][] = [[]];
+    let rowW = 0;
+    const maxRowW = contentW - 2 * padX;
+    for (const tag of persona.tags) {
+      const w = ctx.measureText(tag).width + 52; // 26px h-pad each side
+      const row = rows[rows.length - 1]!;
+      if (row.length > 0 && rowW + pillGap + w > maxRowW) {
+        rows.push([]);
+        rowW = 0;
+      }
+      rows[rows.length - 1]!.push({ text: tag, w });
+      rowW += (row.length > 0 ? pillGap : 0) + w;
+    }
+    const boxH = padY * 2 + rows.length * pillH + (rows.length - 1) * pillGap;
+    ctx.fillStyle = WHITE_BOX;
+    roundRectPath(ctx, M, y, contentW, boxH, 28);
+    ctx.fill();
+    // pills
+    let py = y + padY;
+    for (const row of rows) {
+      let px = M + padX;
+      for (const pill of row) {
+        ctx.fillStyle = WHITE_PILL;
+        roundRectPath(ctx, px, py, pill.w, pillH, pillH / 2);
+        ctx.fill();
+        ctx.fillStyle = ink;
+        ctx.textBaseline = "middle";
+        ctx.fillText(pill.text, px + 26, py + pillH / 2 + 1);
+        ctx.textBaseline = "alphabetic";
+        px += pill.w + pillGap;
+      }
+      py += pillH + pillGap;
+    }
+    y += boxH + 26;
+  }
 
-  y += 240;
-  const half = (W - 2 * M - 24) / 2;
-  ctx.fillStyle = "rgba(255,255,255,.55)";
-  roundedRect(ctx, M, y, half, 130, 24);
-  ctx.fill();
-  roundedRect(ctx, M + half + 24, y, half, 130, 24);
-  ctx.fill();
-  ctx.fillStyle = persona.ink;
-  ctx.textAlign = "center";
-  ctx.globalAlpha = 0.7;
-  ctx.font = '500 26px "Noto Sans TC",sans-serif';
-  ctx.fillText("適合交往", M + half / 2, y + 50);
-  ctx.fillText("適合交友", M + half + 24 + half / 2, y + 50);
-  ctx.globalAlpha = 1;
-  ctx.font = '800 36px "Noto Serif TC",serif';
-  ctx.fillText(dateFaction, M + half / 2, y + 100);
-  ctx.fillText(friendFaction, M + half + 24 + half / 2, y + 100);
+  // ---- desc box ----
+  {
+    const padX = 38;
+    const padY = 34;
+    const lineH = 59;
+    ctx.font = '400 31px "Noto Sans TC",sans-serif';
+    const lines = wrapLines(ctx, persona.desc, contentW - 2 * padX);
+    const boxH = padY * 2 + lines.length * lineH - (lineH - 40);
+    ctx.fillStyle = WHITE_BOX;
+    roundRectPath(ctx, M, y, contentW, boxH, 28);
+    ctx.fill();
+    ctx.fillStyle = ink;
+    lines.forEach((l, i) => ctx.fillText(l, M + padX, y + padY + 40 + i * lineH));
+    y += boxH + 26;
+  }
 
-  ctx.font = '700 32px "Noto Sans TC",sans-serif';
-  ctx.fillText("符合的請在留言區報到 🙋", W / 2, H - 110);
-  ctx.globalAlpha = 0.7;
-  ctx.font = '500 26px "Noto Sans TC",sans-serif';
-  ctx.fillText("— 七夕限定 · 理想型世界盃｜你的又是哪型？—", W / 2, H - 60);
-  ctx.globalAlpha = 1;
-  ctx.textAlign = "left";
+  // ---- champion box (only framed box) ----
+  {
+    const padX = 38;
+    const boxTop = y;
+    // fill remaining space above the "報到" line + footer band
+    const footerBandTop = H - 150;
+    const shoutY = footerBandTop - 60;
+    const boxH = shoutY - 40 - boxTop;
+    ctx.fillStyle = WHITE_BOX;
+    roundRectPath(ctx, M, boxTop, contentW, boxH, 28);
+    ctx.fill();
+    ctx.strokeStyle = frame;
+    ctx.lineWidth = 4;
+    roundRectPath(ctx, M + 2, boxTop + 2, contentW - 4, boxH - 4, 26);
+    ctx.stroke();
+
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.7;
+    ctx.font = '500 26px "Noto Sans TC",sans-serif';
+    ctx.fillText("天字第一號條件", M + padX, boxTop + 60);
+    ctx.globalAlpha = 1;
+    ctx.font = '900 56px "Noto Serif TC","Noto Sans TC",serif';
+    ctx.fillText(`「${championTitle}」`, M + padX, boxTop + 132);
+    ctx.font = '400 26px "Noto Sans TC",sans-serif';
+    ctx.globalAlpha = 0.85;
+    const fourLine = `四強：${finalFourTitles.join("｜")}`;
+    const fourTrimmed = Array.from(fourLine).length > 30 ? Array.from(fourLine).slice(0, 30).join("") + "…" : fourLine;
+    ctx.fillText(fourTrimmed, M + padX, boxTop + 184);
+    ctx.globalAlpha = 1;
+
+    // shout line
+    ctx.font = '700 34px "Noto Sans TC",sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillText("符合的請在留言區報到 🙋", W / 2, shoutY);
+    ctx.textAlign = "left";
+  }
+
+  // ---- footer brand band (ink bg) ----
+  {
+    const bandTop = H - 150;
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, bandTop, W, 150);
+    const midY = bandTop + 75;
+
+    // left: Joysee placeholder + call-to-action.
+    // NOTE: real Joysee logo asset pending — text placeholder, swap when provided.
+    ctx.fillStyle = bg;
+    ctx.textBaseline = "middle";
+    ctx.font = '800 34px "Noto Serif TC",sans-serif';
+    ctx.fillText("揪西歡玩 Joysee", M, midY - 16);
+    ctx.globalAlpha = 0.9;
+    ctx.font = '400 24px "Noto Sans TC",sans-serif';
+    ctx.fillText("掃碼報名七夕單身限定活動", M, midY + 22);
+    ctx.globalAlpha = 1;
+
+    // right: title + QR placeholder
+    const qrSize = 96;
+    const qrX = W - M - qrSize;
+    const qrY = midY - qrSize / 2;
+    ctx.fillStyle = bg;
+    roundRectPath(ctx, qrX, qrY, qrSize, qrSize, 14);
+    ctx.fill();
+    ctx.fillStyle = ink;
+    ctx.font = '600 20px "Noto Sans TC",sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillText("QR", qrX + qrSize / 2, midY);
+    ctx.textAlign = "left";
+
+    ctx.fillStyle = bg;
+    ctx.font = '800 30px "Noto Serif TC",sans-serif';
+    ctx.textAlign = "right";
+    ctx.fillText("七夕理想型世界盃", qrX - 18, midY);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  }
 }
 
 export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string): void {
@@ -134,13 +277,27 @@ export function downloadCanvasAsPng(canvas: HTMLCanvasElement, filename: string)
   a.click();
 }
 
-export function buildShareText(data: PosterData): string {
-  const { persona, mode, championTitle, finalFourTitles, dateFaction } = data;
-  return (
-    `這個七夕我單身，但我測出來了——我是「${persona.name}」（${persona.faction}）。\n` +
-    `${mode} 個條件淘汰到最後，天字第一號：「${championTitle}」\n` +
-    `四強：${finalFourTitles.join("、")}\n` +
-    `適合跟我交往的是${dateFaction}，符合的請在留言區報到 🙋\n` +
-    `你的單身人格又是哪型？來測測看！`
-  );
+export interface ShareTextData {
+  persona: Persona;
+  nickname: string;
+  mode: 64 | 128;
+  championTitle: string;
+  finalFourTitles: string[];
+  dateFaction: string;
+  friendFaction: string;
+  /** 完賽結果的分享短網址（絕對）。若尚未取得則省略。 */
+  resultUrl?: string | null;
+}
+
+export function buildShareText(data: ShareTextData): string {
+  const { persona, mode, championTitle, finalFourTitles, dateFaction, resultUrl } = data;
+  const lines = [
+    `這個七夕我單身，但我測出來了——我是「${persona.name}」（${persona.faction}）。`,
+    `${mode} 個條件淘汰到最後，天字第一號：「${championTitle}」`,
+    `四強：${finalFourTitles.join("、")}`,
+    `適合跟我交往的是${dateFaction}，符合的請在留言區報到 🙋`,
+    `你的單身人格又是哪型？來測測看！`,
+  ];
+  if (resultUrl) lines.push(resultUrl);
+  return lines.join("\n");
 }

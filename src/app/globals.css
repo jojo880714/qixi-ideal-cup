@@ -1,21 +1,48 @@
 /*
- * Placeholder visual layer — ported near-verbatim from the prototype
- * (qixi-ideal-cup-v2.html) so the app is usable end-to-end before the
- * design spec lands. Colors/spacing here are NOT final: swap the
- * `--night/--peach/--gold/...` variables (and persona bg/ink in
- * src/data/personas.ts) once the design spec arrives — the structural
- * classNames below are stable and the design pass shouldn't need to touch
- * component markup.
+ * 七夕理想型世界盃 — 視覺層（Design Spec v1.0 接入）
+ *
+ * 所有色彩／字型／間距／圓角／動態皆走下方 CSS variables。視覺若再改版，
+ * 優先改 :root 的 token；8 派系 bg/ink/frame 定義在 src/data/personas.ts。
+ * 元件 className 結構穩定，改 token 不需動 component markup。
  */
 
 :root {
+  /* 夜空主場景 */
   --night: #170d2e;
-  --night2: #2a1650;
+  --night-2: #2a1650;
+  --card: #241447;
+  --line: #3b2570;
   --peach: #ff8fab;
   --gold: #e8c468;
   --milk: #fff6ec;
-  --card: #241447;
   --mint: #7fe3c4;
+  --text-2: #cdbbe8;
+  --text-3: #b9a6dc;
+
+  /* 動態 */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-reveal: 1400ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 圓角 */
+  --r-sm: 14px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+  --r-pill: 99px;
+
+  /* 間距（4px 基準） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 26px;
+  --space-7: 44px;
+
+  --tap-min: 44px;
 }
 
 * {
@@ -31,10 +58,11 @@ body {
 
 body {
   font-family: "Noto Sans TC", system-ui, sans-serif;
-  background: radial-gradient(1200px 800px at 50% -10%, var(--night2), var(--night) 60%);
+  background: radial-gradient(1200px 800px at 50% -10%, var(--night-2), var(--night) 60%);
   color: var(--milk);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 #starfield {
@@ -49,7 +77,7 @@ body {
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 26px 20px 50px;
+  padding: var(--space-6) var(--space-5) 50px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -61,6 +89,43 @@ body {
   flex-direction: column;
 }
 
+/* ---------- Joysee 品牌 footer（每個畫面最下方，固定位置） ---------- */
+.brand-footer {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--night-2);
+  display: flex;
+  justify-content: center;
+}
+
+/* Joysee 標誌佔位（待真實 logo 資產替換，見 JoyseeLogo.tsx） */
+.joysee-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+  font-size: 15px;
+}
+.joysee-logo .joysee-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1.5px solid var(--gold);
+  font-size: 14px;
+}
+.joysee-logo .joysee-sub {
+  color: var(--text-2);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
 /* ---------- home ---------- */
 .eyebrow {
   letter-spacing: 0.35em;
@@ -68,6 +133,7 @@ body {
   color: var(--mint);
   text-align: center;
   margin-bottom: 14px;
+  font-weight: 700;
 }
 h1 {
   font-family: "Noto Serif TC", serif;
@@ -82,7 +148,7 @@ h1 {
 }
 .sub {
   text-align: center;
-  color: #cdbbe8;
+  color: var(--text-2);
   font-size: 15px;
   line-height: 1.9;
   margin: 16px 0 26px;
@@ -90,15 +156,15 @@ h1 {
 label.fieldlabel {
   display: block;
   font-size: 13px;
-  color: #b9a6dc;
+  color: var(--text-3);
   margin-bottom: 8px;
   letter-spacing: 0.1em;
 }
 input#nickname {
   width: 100%;
   background: #1d1040;
-  border: 1px solid #3b2570;
-  border-radius: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   color: var(--milk);
   padding: 14px 16px;
   font-family: inherit;
@@ -116,19 +182,24 @@ input#nickname:focus-visible {
 }
 .mode-btn {
   background: var(--card);
-  border: 1px solid #3b2570;
-  border-radius: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   padding: 16px 18px;
   color: var(--milk);
   text-align: left;
   cursor: pointer;
   font-family: inherit;
   font-size: 16px;
+  min-height: 76px;
   transition:
-    transform 0.15s,
-    border-color 0.15s;
+    transform var(--dur-fast),
+    border-color var(--dur-fast);
 }
 .mode-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--peach);
+}
+.mode-btn:active {
   transform: translateY(-2px);
   border-color: var(--peach);
 }
@@ -142,7 +213,7 @@ input#nickname:focus-visible {
   margin-bottom: 4px;
 }
 .mode-btn span {
-  color: #b9a6dc;
+  color: var(--text-3);
   font-size: 13px;
 }
 
@@ -154,7 +225,7 @@ input#nickname:focus-visible {
   background: rgba(232, 196, 104, 0.12);
   border: 1px solid var(--gold);
   color: var(--gold);
-  border-radius: 99px;
+  border-radius: var(--r-pill);
   padding: 5px 18px;
   font-size: 13px;
   letter-spacing: 0.15em;
@@ -165,26 +236,45 @@ input#nickname:focus-visible {
   font-size: 24px;
   text-align: center;
   letter-spacing: 0.08em;
+  color: var(--milk);
 }
 .group-sub {
   text-align: center;
   font-size: 13px;
-  color: #b9a6dc;
+  color: var(--text-3);
   margin: 6px 0 12px;
 }
-.progress {
-  height: 6px;
-  background: #2a1a52;
-  border-radius: 99px;
-  overflow: hidden;
-  margin-bottom: 18px;
+
+/* ---------- 鵲橋星點進度（取代進度條） ---------- */
+.bridge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 20px;
+  margin-bottom: 16px;
 }
-.progress i {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--peach), var(--gold));
-  border-radius: 99px;
-  transition: width 0.3s;
+.bridge span {
+  line-height: 1;
+  transition:
+    color var(--dur-slow) var(--ease),
+    text-shadow var(--dur-slow) var(--ease),
+    font-size var(--dur-slow) var(--ease);
+}
+.bridge span.dot-future {
+  color: #4a2f87;
+  font-size: 16px;
+}
+.bridge span.dot-done {
+  color: var(--gold);
+  font-size: 13px;
+  text-shadow: 0 0 8px rgba(232, 196, 104, 0.7);
+}
+.bridge span.dot-cur {
+  color: var(--peach);
+  font-size: 18px;
+  text-shadow: 0 0 8px rgba(232, 196, 104, 0.7);
+  animation: dotPulse 0.32s var(--ease);
 }
 
 /* ---------- group pick ---------- */
@@ -203,8 +293,8 @@ input#nickname:focus-visible {
 }
 .trait-card {
   background: var(--card);
-  border: 1px solid #3b2570;
-  border-radius: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   min-height: 86px;
   padding: 14px 12px;
   text-align: center;
@@ -217,9 +307,14 @@ input#nickname:focus-visible {
   align-items: center;
   justify-content: center;
   transition:
-    transform 0.12s,
-    border-color 0.12s,
-    background 0.12s;
+    transform var(--dur-fast),
+    border-color var(--dur-fast),
+    background var(--dur-fast);
+}
+/* 8 選 2：卡片縮小、字級略降 */
+.grid.dense .trait-card {
+  min-height: 72px;
+  font-size: 14px;
 }
 .trait-card:hover {
   transform: scale(1.02);
@@ -235,23 +330,25 @@ input#nickname:focus-visible {
   box-shadow:
     0 0 0 1px var(--peach),
     0 6px 24px rgba(255, 143, 171, 0.18);
+  transform: scale(1.02);
 }
 .confirm {
   margin-top: 16px;
   width: 100%;
   padding: 15px;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-family: "Noto Serif TC", serif;
   font-weight: 700;
   font-size: 16px;
   letter-spacing: 0.12em;
+  min-height: 48px;
   background: linear-gradient(120deg, var(--peach), var(--gold));
   color: #2a1030;
   transition:
-    transform 0.15s,
-    opacity 0.15s;
+    transform var(--dur-fast),
+    opacity var(--dur-fast);
 }
 .confirm:disabled {
   opacity: 0.35;
@@ -265,7 +362,28 @@ input#nickname:focus-visible {
   outline-offset: 2px;
 }
 
-/* ---------- 1v1 ---------- */
+/* ---------- 1v1 對決（三階段張力遞增） ---------- */
+.duel {
+  position: relative;
+}
+/* 各階段背景頂光 */
+.duel.stage-0 {
+  background: radial-gradient(700px 500px at 50% -8%, var(--night-2), var(--night) 60%);
+}
+.duel.stage-1 {
+  background:
+    radial-gradient(700px 500px at 50% -8%, #331a55, var(--night) 60%),
+    radial-gradient(400px 260px at 50% 0%, rgba(255, 143, 171, 0.14), transparent);
+}
+.duel.stage-2 {
+  background:
+    radial-gradient(700px 500px at 50% -8%, #3a2648, var(--night) 60%),
+    radial-gradient(400px 260px at 50% 0%, rgba(232, 196, 104, 0.16), transparent);
+}
+.duel .stage-tag.tag-final {
+  background: rgba(232, 196, 104, 0.18);
+  box-shadow: 0 0 16px rgba(232, 196, 104, 0.35);
+}
 .battle {
   display: flex;
   flex-direction: column;
@@ -275,27 +393,40 @@ input#nickname:focus-visible {
 }
 .duel-card {
   background: var(--card);
-  border: 1px solid #3b2570;
-  border-radius: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
   padding: 30px 20px;
   text-align: center;
   cursor: pointer;
   font-family: inherit;
   color: var(--milk);
+  min-height: 96px;
   transition:
-    transform 0.15s,
-    border-color 0.15s,
-    box-shadow 0.15s;
-  width: 100%;
+    transform var(--dur-base) var(--ease),
+    border-color var(--dur-base),
+    box-shadow var(--dur-base),
+    opacity var(--dur-base);
+}
+.stage-1 .duel-card {
+  border: 1.5px solid var(--peach);
+  box-shadow: 0 6px 30px rgba(255, 143, 171, 0.2);
+}
+.stage-2 .duel-card {
+  border: 2px solid var(--gold);
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 8px 36px rgba(232, 196, 104, 0.3);
 }
 .duel-card:hover {
   transform: scale(1.02);
-  border-color: var(--peach);
-  box-shadow: 0 6px 30px rgba(255, 143, 171, 0.15);
 }
 .duel-card:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+.duel-card.loser {
+  animation: fadeDim 0.18s var(--ease) forwards;
+  pointer-events: none;
 }
 .duel-card .t {
   font-family: "Noto Serif TC", serif;
@@ -307,23 +438,114 @@ input#nickname:focus-visible {
   text-align: center;
   font-family: "Noto Serif TC", serif;
   font-weight: 800;
+  letter-spacing: 0.3em;
   color: var(--peach);
   font-size: 18px;
-  letter-spacing: 0.3em;
+}
+.stage-1 .vs {
+  font-size: 22px;
+  letter-spacing: 0.35em;
+  text-shadow: 0 0 14px rgba(255, 143, 171, 0.6);
+}
+.stage-2 .vs {
+  font-size: 28px;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(232, 196, 104, 0.8);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-    animation: none !important;
-  }
+/* ---------- 冠軍揭曉時刻 星等爆發 ---------- */
+.reveal {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  overflow: hidden;
+}
+.reveal .ring {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+}
+.reveal .ring-1 {
+  border: 2px solid var(--gold);
+  animation: ringOut 1s var(--ease) forwards;
+}
+.reveal .ring-2 {
+  border: 1px solid var(--peach);
+  animation: ringOut 1.3s 0.15s var(--ease) forwards;
+}
+.reveal .particle {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  border-radius: 50%;
+  z-index: 1;
+}
+.reveal .champ-card {
+  position: relative;
+  z-index: 2;
+  background: var(--card);
+  border: 2px solid var(--gold);
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 0 44px rgba(232, 196, 104, 0.45);
+  border-radius: var(--r-lg);
+  padding: 34px 30px;
+  text-align: center;
+  animation: champPop 0.6s var(--ease) forwards;
+}
+.reveal .champ-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+}
+.reveal .champ-title {
+  margin: 0;
+  font-family: "Noto Serif TC", serif;
+  font-weight: 900;
+  font-size: 26px;
+  color: var(--milk);
+  line-height: 1.5;
+}
+.reveal .champ-stamp {
+  position: absolute;
+  top: -18px;
+  right: -16px;
+  border: 2.5px solid var(--peach);
+  color: var(--peach);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-family: "Noto Serif TC", serif;
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  background: rgba(23, 13, 46, 0.85);
+  transform: rotate(-8deg);
+  animation: stampIn 0.5s 0.8s var(--ease) backwards;
 }
 
 /* ---------- result card ---------- */
+#result .screen,
+.screen#result {
+  flex: 1;
+}
 .result-card {
-  border-radius: 24px;
-  padding: 30px 24px 26px;
+  border-radius: var(--r-xl);
+  padding: 28px 22px 24px;
   margin: 6px 0 16px;
+  position: relative;
+  animation: cardSlideIn var(--dur-slow) var(--ease);
+}
+.result-card .rc-seal {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  transform: rotate(-8deg);
+  opacity: 0.9;
 }
 .result-card .rc-eyebrow {
   font-size: 14px;
@@ -334,9 +556,10 @@ input#nickname:focus-visible {
 .result-card .rc-title {
   font-family: "Noto Serif TC", serif;
   font-weight: 900;
-  font-size: 34px;
+  font-size: 32px;
   line-height: 1.3;
   margin-bottom: 4px;
+  padding-right: 64px;
 }
 .result-card .rc-nick {
   font-size: 13px;
@@ -345,15 +568,20 @@ input#nickname:focus-visible {
 }
 .result-card .rc-box {
   background: rgba(255, 255, 255, 0.55);
-  border-radius: 16px;
+  border-radius: var(--r-md);
   padding: 14px 16px;
   margin-bottom: 12px;
+}
+/* 天字第一號盒 = 卡上唯一有框資訊盒（視覺焦點） */
+.result-card .rc-box.rc-champ-box {
+  border: 2px solid var(--rc-frame, rgba(0, 0, 0, 0.2));
 }
 .result-card .rc-box h4 {
   font-size: 13px;
   letter-spacing: 0.15em;
   margin-bottom: 8px;
   opacity: 0.7;
+  font-weight: 500;
 }
 .result-card .rc-tags {
   display: flex;
@@ -362,7 +590,7 @@ input#nickname:focus-visible {
 }
 .result-card .rc-tags span {
   background: rgba(255, 255, 255, 0.7);
-  border-radius: 99px;
+  border-radius: var(--r-pill);
   padding: 5px 12px;
   font-size: 13px;
   font-weight: 500;
@@ -379,7 +607,7 @@ input#nickname:focus-visible {
   line-height: 1.5;
 }
 .result-card .rc-four {
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.9;
   margin-top: 8px;
   opacity: 0.85;
@@ -397,7 +625,7 @@ input#nickname:focus-visible {
   display: block;
   font-family: "Noto Serif TC", serif;
   font-size: 16px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 .result-card .rc-footer {
   text-align: center;
@@ -416,15 +644,16 @@ input#nickname:focus-visible {
   width: 100%;
   padding: 15px;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-family: "Noto Serif TC", serif;
   font-weight: 700;
   font-size: 17px;
   letter-spacing: 0.1em;
+  min-height: 48px;
   background: linear-gradient(120deg, var(--peach), var(--gold));
   color: #2a1030;
-  transition: transform 0.15s;
+  transition: transform var(--dur-fast);
 }
 .primary:hover {
   transform: translateY(-2px);
@@ -438,17 +667,46 @@ input#nickname:focus-visible {
   outline: 2px solid var(--milk);
   outline-offset: 2px;
 }
+/* 報名實體聯誼 CTA — gold 外框純文字 */
+.cta-signup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  min-height: 48px;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color var(--dur-fast);
+}
+.cta-signup:hover {
+  border-color: var(--peach);
+  text-decoration: none;
+}
+.cta-signup:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
 .ghost {
   width: 100%;
   padding: 13px;
-  border-radius: 14px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   font-family: inherit;
   font-size: 15px;
+  min-height: 44px;
   background: transparent;
   border: 1px solid #4a2f87;
-  color: #cdbbe8;
-  transition: border-color 0.15s;
+  color: var(--text-2);
+  transition: border-color var(--dur-fast);
 }
 .ghost:hover {
   border-color: var(--peach);
@@ -466,13 +724,14 @@ input#nickname:focus-visible {
   background: var(--gold);
   color: #2a1030;
   padding: 10px 20px;
-  border-radius: 99px;
+  border-radius: var(--r-pill);
   font-size: 14px;
   font-weight: 700;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s;
+  transition: opacity var(--dur-slow);
   z-index: 9;
+  white-space: nowrap;
 }
 .toast.show {
   opacity: 1;
@@ -480,4 +739,88 @@ input#nickname:focus-visible {
 
 canvas#poster {
   display: none;
+}
+
+/* ---------- keyframes ---------- */
+@keyframes champPop {
+  0% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+@keyframes ringOut {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@keyframes dust {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.15);
+    opacity: 0;
+  }
+}
+@keyframes stampIn {
+  0% {
+    transform: rotate(-8deg) scale(2.2);
+    opacity: 0;
+  }
+  70% {
+    transform: rotate(-8deg) scale(0.94);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-8deg) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fadeDim {
+  to {
+    opacity: 0.18;
+    filter: grayscale(0.6);
+  }
+}
+@keyframes cardSlideIn {
+  0% {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes dotPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

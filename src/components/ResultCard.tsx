@@ -1,4 +1,5 @@
 import type { Persona } from "@/data/personas";
+import { Seal } from "./Seal";
 
 export interface ResultCardProps {
   persona: Persona;
@@ -21,7 +22,17 @@ export function ResultCard({
   friendFaction,
 }: ResultCardProps) {
   return (
-    <div className="result-card" style={{ background: persona.bg, color: persona.ink }}>
+    <div
+      className="result-card"
+      style={
+        {
+          background: persona.bg,
+          color: persona.ink,
+          ["--rc-frame" as string]: persona.frame,
+        } as React.CSSProperties
+      }
+    >
+      <Seal seal={persona.seal} color={persona.ink} size={58} variant="stamp" className="rc-seal" />
       <p className="rc-eyebrow">你是</p>
       <p className="rc-title">{persona.name}</p>
       <p className="rc-nick">
@@ -38,7 +49,7 @@ export function ResultCard({
       <div className="rc-box">
         <p className="rc-desc">{persona.desc}</p>
       </div>
-      <div className="rc-box">
+      <div className="rc-box rc-champ-box">
         <h4>天字第一號條件</h4>
         <p className="rc-champ">「{championTitle}」</p>
         <p className="rc-four">四強：{finalFourTitles.join("｜")}</p>
