@@ -90,6 +90,57 @@ revoke all on function public.get_result_by_id(uuid) from public;
 grant execute on function public.get_result_by_id(uuid) to anon;
 
 -- ---------------------------------------------------------------------
+-- Rate limiting (distributed, Postgres-backed).
+--
+-- Used by POST /api/results to throttle writes per IP and stop spam from
+-- polluting the stats — without needing a separate Redis/Upstash account.
+-- The counter table is locked to anon (no policies, privileges revoked);
+-- the only way in is the SECURITY DEFINER function below, which atomically
+-- increments a fixed-window bucket and returns whether the caller is still
+-- under the limit. Shared across every serverless instance because it lives
+-- in the same Postgres.
+-- ---------------------------------------------------------------------
+
+create table if not exists public.rate_limit (
+  bucket text primary key,        -- "<ip>:<window index>"
+  count int not null default 0,
+  expires_at timestamptz not null
+);
+create index if not exists rate_limit_expires_idx on public.rate_limit (expires_at);
+
+alter table public.rate_limit enable row level security;
+revoke all on public.rate_limit from anon, authenticated;
+-- deliberately no policies: anon can only touch it via check_rate_limit().
+
+create or replace function public.check_rate_limit(p_ip text, p_max int, p_window_seconds int)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_window bigint := floor(extract(epoch from now()) / p_window_seconds);
+  v_bucket text := p_ip || ':' || v_window::text;
+  v_count int;
+begin
+  insert into public.rate_limit (bucket, count, expires_at)
+    values (v_bucket, 1, now() + make_interval(secs => p_window_seconds * 2))
+    on conflict (bucket) do update set count = public.rate_limit.count + 1
+    returning count into v_count;
+
+  -- opportunistic cleanup (~5% of calls) keeps the table tiny without a cron.
+  if random() < 0.05 then
+    delete from public.rate_limit where expires_at < now();
+  end if;
+
+  return v_count <= p_max;  -- true = allowed
+end;
+$$;
+
+revoke all on function public.check_rate_limit(text, int, int) from public;
+grant execute on function public.check_rate_limit(text, int, int) to anon;
+
+-- ---------------------------------------------------------------------
 -- Stats views (public aggregates). These expose ONLY aggregated counts —
 -- per-persona totals and per-trait champion/final-four counts. No row ids,
 -- no nicknames, nothing per-user. A Postgres view runs with its owner's

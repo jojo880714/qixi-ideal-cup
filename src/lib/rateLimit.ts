@@ -1,71 +1,86 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { getSupabaseAnonClient } from "@/lib/supabase/client";
 
-const WINDOW = "60 s";
+const WINDOW_SECONDS = 60;
 const MAX_REQUESTS = 5;
+
+/* -------------------- Upstash (optional, highest priority) -------------------- */
 
 let cachedLimiter: Ratelimit | null | undefined;
 
-/**
- * Builds (once) the Upstash-backed limiter if UPSTASH_REDIS_REST_URL/TOKEN
- * are configured. Returns null if not configured, so callers can fall back.
- */
 function getUpstashLimiter(): Ratelimit | null {
   if (cachedLimiter !== undefined) return cachedLimiter;
-
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
     cachedLimiter = null;
     return cachedLimiter;
   }
-
   cachedLimiter = new Ratelimit({
     redis: new Redis({ url, token }),
-    limiter: Ratelimit.slidingWindow(MAX_REQUESTS, WINDOW),
+    limiter: Ratelimit.slidingWindow(MAX_REQUESTS, `${WINDOW_SECONDS} s`),
     prefix: "qixi-ideal-cup",
     analytics: false,
   });
   return cachedLimiter;
 }
 
-// Dev-only fallback. Each serverless instance has its own memory, and
-// instances are recycled constantly on Vercel — this does NOT throttle
-// anything in production. It exists purely so local development works
-// without an Upstash account. Production MUST set the Upstash env vars.
+/* -------------------- Supabase-backed (default in this deployment) -------------------- */
+
+// Distributed fixed-window limiter backed by the same Supabase Postgres the
+// app already uses (see check_rate_limit() in supabase/schema.sql). Shared
+// across all serverless instances, so it actually throttles in production —
+// no separate Redis/Upstash account required. anon can only reach the
+// counter through the SECURITY DEFINER function, never the table directly.
+function supabaseConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+async function supabaseRateLimit(identifier: string): Promise<{ success: boolean }> {
+  const supabase = getSupabaseAnonClient();
+  const { data, error } = await supabase.rpc("check_rate_limit", {
+    p_ip: identifier,
+    p_max: MAX_REQUESTS,
+    p_window_seconds: WINDOW_SECONDS,
+  });
+  // Fail open on infrastructure error: a transient DB hiccup must not block
+  // legitimate completions. Abuse is still bounded by the in-memory guard
+  // that runs in the same instance for the current window.
+  if (error) {
+    console.error("[rateLimit] supabase check_rate_limit failed, failing open:", error.message);
+    return memoryRateLimit(identifier);
+  }
+  return { success: data === true };
+}
+
+/* -------------------- In-memory (last-resort / local dev) -------------------- */
+
 const memoryHits = new Map<string, number[]>();
-const MEMORY_WINDOW_MS = 60_000;
 
 function memoryRateLimit(key: string): { success: boolean } {
   const now = Date.now();
-  const hits = (memoryHits.get(key) ?? []).filter((t) => now - t < MEMORY_WINDOW_MS);
+  const hits = (memoryHits.get(key) ?? []).filter((t) => now - t < WINDOW_SECONDS * 1000);
   hits.push(now);
   memoryHits.set(key, hits);
   return { success: hits.length <= MAX_REQUESTS };
 }
 
-let warnedNoUpstash = false;
-
 /**
- * Checks whether `identifier` (typically the client IP) is within the
- * allowed write rate: MAX_REQUESTS per WINDOW. Backed by Upstash Redis in
- * any environment where it's configured; falls back to an in-memory (dev
- * only) limiter otherwise.
+ * Checks whether `identifier` (client IP) is within the allowed write rate:
+ * MAX_REQUESTS per WINDOW_SECONDS. Backend priority:
+ *   1. Upstash Redis, if configured (UPSTASH_REDIS_REST_URL/TOKEN)
+ *   2. Supabase Postgres (default here — distributed, no extra account)
+ *   3. In-memory (local dev only; per-instance, not for production)
  */
 export async function checkRateLimit(identifier: string): Promise<{ success: boolean }> {
-  const limiter = getUpstashLimiter();
-  if (limiter) {
-    const { success } = await limiter.limit(identifier);
+  const upstash = getUpstashLimiter();
+  if (upstash) {
+    const { success } = await upstash.limit(identifier);
     return { success };
   }
-
-  if (!warnedNoUpstash) {
-    warnedNoUpstash = true;
-    console.warn(
-      "[rateLimit] UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN not set — using an " +
-        "in-memory fallback limiter. This does NOT protect production traffic (每個 " +
-        "serverless instance 各自計數，重啟即歸零). Configure Upstash before launch.",
-    );
+  if (supabaseConfigured()) {
+    return supabaseRateLimit(identifier);
   }
   return memoryRateLimit(identifier);
 }
