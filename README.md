@@ -25,8 +25,8 @@ npm run dev
 2. 在 SQL editor 執行 `supabase/schema.sql`（內含 `results` 資料表、RLS policy、`get_result_by_id` RPC、`persona_distribution` / `trait_stats` 統計 view，每個決策都有註解說明）。
 3. 到 Project Settings → API，取得：
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`（**只**用在 `/api/stats`，絕不進前端 bundle）
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`（新版金鑰的 `sb_publishable_…` 即可）
+   - 不需要 service-role／secret key：`/stats` 的兩個聚合 view 已 `grant select` 給 anon（只暴露計數、無列資料），個別結果列仍不可被 anon 讀取。
 
 ## Rate limiting（Upstash Redis）
 
@@ -38,7 +38,6 @@ npm run dev
 2. 在 Vercel Project Settings → Environment Variables 依 `.env.example` 逐一填入，**Production 和 Preview 都要設**：
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
    - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
    - `NEXT_PUBLIC_SITE_URL`（Production 填正式網域，先用 Vercel 給的 `*.vercel.app`；之後換自訂網域只改這一個值。分享短網址、OG canonical、metadataBase 都靠它）
    - `NEXT_PUBLIC_SIGNUP_URL`（結果頁「報名實體聯誼活動」CTA 連結，合作方提供；**留空則 CTA 自動隱藏**，不會連到死連結）
