@@ -569,6 +569,13 @@ input#nickname:focus-visible {
   margin-bottom: 4px;
   padding-right: 64px;
 }
+.result-card .rc-subtitle {
+  font-size: 15px;
+  font-weight: 500;
+  opacity: 0.72;
+  margin-bottom: 2px;
+  padding-right: 64px;
+}
 .result-card .rc-nick {
   font-size: 13px;
   opacity: 0.75;
@@ -620,20 +627,20 @@ input#nickname:focus-visible {
   margin-top: 8px;
   opacity: 0.85;
 }
-.result-card .rc-match {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.result-card .rc-match .rc-box {
-  margin-bottom: 0;
-  text-align: center;
-}
-.result-card .rc-match b {
+/* 命定交往／交友：整排、含一句「為什麼」 */
+.result-card .rc-match-box b {
   display: block;
   font-family: "Noto Serif TC", serif;
-  font-size: 16px;
-  margin-top: 3px;
+  font-weight: 800;
+  font-size: 19px;
+  margin-top: 2px;
+}
+.result-card .rc-reason {
+  font-size: 13px;
+  line-height: 1.85;
+  margin-top: 8px;
+  opacity: 0.85;
+  text-align: justify;
 }
 .result-card .rc-footer {
   text-align: center;

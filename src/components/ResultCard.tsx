@@ -35,6 +35,7 @@ export function ResultCard({
       <Seal seal={persona.seal} color={persona.ink} size={58} variant="stamp" className="rc-seal" />
       <p className="rc-eyebrow">你是</p>
       <p className="rc-title">{persona.name}</p>
+      <p className="rc-subtitle">{persona.subtitle}</p>
       <p className="rc-nick">
         @{nickname}｜七夕理想型世界盃 {mode} 強
       </p>
@@ -54,15 +55,15 @@ export function ResultCard({
         <p className="rc-champ">「{championTitle}」</p>
         <p className="rc-four">四強：{finalFourTitles.join("｜")}</p>
       </div>
-      <div className="rc-match">
-        <div className="rc-box">
-          <h4>適合交往</h4>
-          <b>{dateFaction}</b>
-        </div>
-        <div className="rc-box">
-          <h4>適合交友</h4>
-          <b>{friendFaction}</b>
-        </div>
+      <div className="rc-box rc-match-box">
+        <h4>命定交往</h4>
+        <b>{dateFaction}</b>
+        <p className="rc-reason">{persona.dateReason}</p>
+      </div>
+      <div className="rc-box rc-match-box">
+        <h4>命定交友</h4>
+        <b>{friendFaction}</b>
+        <p className="rc-reason">{persona.friendReason}</p>
       </div>
       <p className="rc-footer">符合的請在留言區報到 🙋 你的又是哪型？</p>
     </div>
